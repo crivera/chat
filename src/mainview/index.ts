@@ -16,6 +16,9 @@ type Schema = {
       };
     };
     messages: {
+      minimizeWindow: Record<string, never>;
+      maximizeWindow: Record<string, never>;
+      closeWindow: Record<string, never>;
       openTerminal: { folderPath: string };
       closeTerminal: { id: string };
       terminalInput: { id: string; data: string };

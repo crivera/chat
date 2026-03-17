@@ -39,6 +39,9 @@ const config = {
         "bun/rust-pty/target/release/rust_pty.dll",
     },
   },
+  scripts: {
+    postBuild: "./scripts/post-build.ts",
+  },
 };
 
 export default config;

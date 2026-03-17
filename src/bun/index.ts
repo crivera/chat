@@ -66,6 +66,9 @@ type Schema = {
       };
     };
     messages: {
+      minimizeWindow: Record<string, never>;
+      maximizeWindow: Record<string, never>;
+      closeWindow: Record<string, never>;
       openTerminal: { folderPath: string };
       closeTerminal: { id: string };
       terminalInput: { id: string; data: string };
@@ -237,7 +240,7 @@ const rpc = BrowserView.defineRPC<Schema>({
                       "Add-Type -AssemblyName System.Windows.Forms",
                       "$f = New-Object System.Windows.Forms.FolderBrowserDialog",
                       "$f.Description = 'Select a project folder'",
-                      "$f.RootFolder = 'MyComputer'",
+                      "$f.RootFolder = 'Desktop'",
                       `$f.SelectedPath = '${homedir().replace(/'/g, "''")}'`,
                       "if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath } else { '' }",
                     ].join("; "),
@@ -271,6 +274,19 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
     },
     messages: {
+      minimizeWindow: () => {
+        win.minimize();
+      },
+      maximizeWindow: () => {
+        if (win.isMaximized()) {
+          win.unmaximize();
+        } else {
+          win.maximize();
+        }
+      },
+      closeWindow: () => {
+        win.close();
+      },
       openTerminal: async ({ folderPath }: { folderPath: string }) => {
         try {
           spawnTerminal(folderPath);
@@ -428,6 +444,7 @@ const win = new BrowserWindow({
     width: 1400,
     height: 900,
   },
+  titleBarStyle: "default",
   url: "views://mainview/index.html",
   rpc,
 });
