@@ -302,7 +302,6 @@ function createProjectListItem(id: string, name: string): HTMLDivElement {
   item.dataset.id = id;
 
   item.innerHTML = `
-    <span class="project-chevron">&#x25BE;</span>
     <span class="project-icon">&#x1F4C1;</span>
     <span class="project-name">${name}</span>
     <button class="project-close" title="Close">&#x2715;</button>
