@@ -79,6 +79,7 @@ type Schema = {
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
       actionResult: { id: string; action: string; output: string; ok: boolean };
+      updateToast: { message: string };
     };
   }>;
 };
@@ -346,9 +347,11 @@ async function checkForUpdates() {
   try {
     const result = await Updater.checkForUpdate();
     if (result.updateAvailable) {
+      rpc.send.updateToast({ message: "Downloading update..." });
       await Updater.downloadUpdate();
       const info = Updater.updateInfo();
       if (info.updateReady) {
+        rpc.send.updateToast({ message: "Update ready — restarting..." });
         await Updater.applyUpdate();
       }
     }

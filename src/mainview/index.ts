@@ -33,6 +33,7 @@ type Schema = {
         output: string;
         ok: boolean;
       };
+      updateToast: { message: string };
     };
   }>;
 };
@@ -73,6 +74,9 @@ const rpc = Electroview.defineRPC<Schema>({
         ok: boolean;
       }) => {
         showToast(`git ${action}`, output, ok);
+      },
+      updateToast: ({ message }: { message: string }) => {
+        showToast("Update", message, true);
       },
     },
   },

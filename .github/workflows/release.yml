@@ -30,7 +30,13 @@ jobs:
     needs: determine-channel
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Sync package.json version from tag
+        run: |
+          VERSION="${{ needs.determine-channel.outputs.tag }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -73,7 +79,7 @@ jobs:
           ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-artifacts
           path: artifacts/*
@@ -82,7 +88,14 @@ jobs:
     needs: determine-channel
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Sync package.json version from tag
+        shell: bash
+        run: |
+          VERSION="${{ needs.determine-channel.outputs.tag }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -94,7 +107,7 @@ jobs:
         run: bun run build:${{ needs.determine-channel.outputs.channel }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-artifacts
           path: artifacts/*
@@ -104,13 +117,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-artifacts
           path: artifacts
 
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-artifacts
           path: artifacts
