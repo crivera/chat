@@ -1,0 +1,2 @@
+bun run tsc --noEmit --skipLibCheck
+npx lint-staged

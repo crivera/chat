@@ -3,6 +3,9 @@ const config = {
     name: "Chat",
     identifier: "com.chad.app",
   },
+  release: {
+    baseUrl: "https://github.com/crivera/chat/releases/latest/download",
+  },
   build: {
     mac: {
       icons: "icon.iconset",

@@ -9,6 +9,10 @@ type Schema = {
         params: Record<string, never>;
         response: string | null;
       };
+      getAppInfo: {
+        params: Record<string, never>;
+        response: { version: string };
+      };
     };
     messages: {
       openTerminal: { folderPath: string };
@@ -18,7 +22,7 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: {};
+    requests: Record<string, never>;
     messages: {
       terminalReady: { id: string; name: string; folderPath: string };
       terminalOutput: { id: string; data: string };
@@ -99,10 +103,15 @@ const settingsPanel = document.getElementById("settings-panel")!;
 const settingsBtn = document.getElementById("settings-btn")!;
 const settingsBack = document.getElementById("settings-back")!;
 
-function showSettings() {
+async function showSettings() {
   settingsPanel.classList.add("open");
-  const countEl = settingsPanel.querySelector<HTMLSpanElement>("#settings-project-count")!;
-  countEl.textContent = String(terminals.size);
+  settingsPanel.querySelector<HTMLSpanElement>(
+    "#settings-project-count",
+  )!.textContent = String(terminals.size);
+  const info = await rpc.request.getAppInfo({});
+  settingsPanel.querySelector<HTMLSpanElement>(
+    "#settings-version",
+  )!.textContent = info.version;
 }
 
 function hideSettings() {
@@ -112,12 +121,18 @@ function hideSettings() {
 settingsBtn.addEventListener("click", showSettings);
 settingsBack.addEventListener("click", hideSettings);
 
-document.getElementById("settings-clear-data")!.addEventListener("click", () => {
-  if (confirm("Clear all saved project data? Open sessions will not be affected.")) {
-    localStorage.clear();
-    showToast("Settings", "Local data cleared", true);
-  }
-});
+document
+  .getElementById("settings-clear-data")!
+  .addEventListener("click", () => {
+    if (
+      confirm(
+        "Clear all saved project data? Open sessions will not be affected.",
+      )
+    ) {
+      localStorage.clear();
+      showToast("Settings", "Local data cleared", true);
+    }
+  });
 
 document.getElementById("settings-close-all")!.addEventListener("click", () => {
   if (terminals.size === 0) return;

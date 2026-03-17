@@ -8,6 +8,7 @@ import {
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import pkg from "../../package.json";
 
 // Persistence
 const configDir = join(homedir(), ".config", "chat-app");
@@ -23,7 +24,11 @@ function loadSavedProjects(): SavedProject[] {
     if (existsSync(configFile)) {
       const data = JSON.parse(readFileSync(configFile, "utf-8"));
       // Handle old format (string[])
-      if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+      if (
+        Array.isArray(data) &&
+        data.length > 0 &&
+        typeof data[0] === "string"
+      ) {
         return data.map((f: string) => ({ folderPath: f, hasWorktree: true }));
       }
       return data;
@@ -46,6 +51,10 @@ type Schema = {
         params: Record<string, never>;
         response: string | null;
       };
+      getAppInfo: {
+        params: Record<string, never>;
+        response: { version: string };
+      };
     };
     messages: {
       openTerminal: { folderPath: string };
@@ -55,7 +64,7 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: {};
+    requests: Record<string, never>;
     messages: {
       terminalReady: { id: string; name: string; folderPath: string };
       terminalOutput: { id: string; data: string };
@@ -162,6 +171,9 @@ const rpc = BrowserView.defineRPC<Schema>({
           }, 0);
         });
       },
+      getAppInfo: () => {
+        return { version: pkg.version };
+      },
     },
     messages: {
       openTerminal: ({ folderPath }: { folderPath: string }) => {
@@ -183,13 +195,7 @@ const rpc = BrowserView.defineRPC<Schema>({
           terminal.proc.stdin.flush();
         }
       },
-      shellAction: async ({
-        id,
-        action,
-      }: {
-        id: string;
-        action: string;
-      }) => {
+      shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
         if (!terminal) return;
         const folder = terminal.folderPath;

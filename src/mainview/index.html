@@ -55,40 +55,59 @@
     </div>
     <div id="settings-panel" class="settings-panel">
       <div class="settings-header">
-        <button id="settings-back" class="settings-back-btn">&#x2190;</button>
+        <button id="settings-back" class="settings-back-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+        </button>
         <span class="settings-title">Settings</span>
       </div>
       <div class="settings-body">
-        <div class="settings-section">
-          <div class="settings-section-title">About</div>
-          <div class="settings-row">
-            <span class="settings-row-label">App</span>
-            <span class="settings-row-value">Chat</span>
+        <div class="settings-hero">
+          <div class="settings-app-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
           </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Version</span>
-            <span class="settings-row-value">1.0.0</span>
-          </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Runtime</span>
-            <span class="settings-row-value">Electrobun</span>
-          </div>
+          <div class="settings-app-name">Chat</div>
+          <div class="settings-app-version" id="settings-version">-</div>
         </div>
-        <div class="settings-section">
+
+        <div class="settings-card">
           <div class="settings-section-title">Session</div>
           <div class="settings-row">
-            <span class="settings-row-label">Open projects</span>
-            <span class="settings-row-value" id="settings-project-count">0</span>
+            <span class="settings-row-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Open projects
+            </span>
+            <span class="settings-row-badge" id="settings-project-count">0</span>
           </div>
           <div class="settings-row">
-            <span class="settings-row-label">Config path</span>
+            <span class="settings-row-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Runtime
+            </span>
+            <span class="settings-row-value">Electrobun</span>
+          </div>
+          <div class="settings-row settings-row-last">
+            <span class="settings-row-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Config
+            </span>
             <span class="settings-row-value settings-row-mono">~/.config/chat-app/</span>
           </div>
         </div>
-        <div class="settings-section">
+
+        <div class="settings-card">
           <div class="settings-section-title">Actions</div>
-          <button class="settings-action-btn" id="settings-close-all">Close all projects</button>
-          <button class="settings-action-btn settings-action-danger" id="settings-clear-data">Clear saved data</button>
+          <button class="settings-action-btn" id="settings-close-all">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            Close all projects
+          </button>
+          <button class="settings-action-btn settings-action-danger" id="settings-clear-data">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Clear saved data
+          </button>
+        </div>
+
+        <div class="settings-footer">
+          Built with Electrobun + xterm.js
         </div>
       </div>
     </div>

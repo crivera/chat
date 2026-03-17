@@ -192,9 +192,9 @@ body {
 .settings-panel {
   position: fixed;
   inset: 0;
-  background: #161616;
+  background: #131313;
   transform: translateX(100%);
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 500;
   display: flex;
   flex-direction: column;
@@ -208,110 +208,200 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid #2a2a2a;
+  padding: 14px 20px;
+  border-bottom: 1px solid #1e1e1e;
+  backdrop-filter: blur(10px);
 }
 
 .settings-back-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: #888;
-  font-size: 16px;
+  color: #666;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.15s;
 }
 
 .settings-back-btn:hover {
-  background: #2a2a2a;
+  background: #222;
   color: #ccc;
 }
 
 .settings-title {
   font-size: 14px;
   font-weight: 600;
-  color: #ccc;
+  color: #999;
+  letter-spacing: 0.02em;
 }
 
 .settings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
-  max-width: 480px;
+  padding: 32px 24px;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.settings-section {
-  margin-bottom: 28px;
+/* Hero / app identity */
+.settings-hero {
+  text-align: center;
+  padding: 20px 0 36px;
+}
+
+.settings-app-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  background: linear-gradient(135deg, #1e1e1e, #2a2a2a);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  border: 1px solid #2a2a2a;
+}
+
+.settings-app-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e0e0e0;
+  letter-spacing: -0.01em;
+}
+
+.settings-app-version {
+  font-size: 12px;
+  color: #555;
+  margin-top: 4px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+/* Cards */
+.settings-card {
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .settings-section-title {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #666;
+  color: #555;
   margin-bottom: 12px;
+  padding: 0 2px;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #222;
+  padding: 10px 2px;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.settings-row-last {
+  border-bottom: none;
 }
 
 .settings-row-label {
   font-size: 13px;
-  color: #999;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-row-label svg {
+  color: #555;
+  flex-shrink: 0;
 }
 
 .settings-row-value {
   font-size: 13px;
+  color: #bbb;
+}
+
+.settings-row-badge {
+  font-size: 12px;
+  font-weight: 600;
   color: #ccc;
+  background: #252525;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .settings-row-mono {
   font-family: 'SF Mono', 'Menlo', monospace;
   font-size: 11px;
-  color: #888;
+  color: #666;
 }
 
+/* Action buttons */
 .settings-action-btn {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 10px 14px;
-  margin-bottom: 8px;
-  border: 1px solid #2a2a2a;
+  padding: 11px 12px;
+  margin-bottom: 4px;
+  border: none;
   border-radius: 8px;
-  background: #1e1e1e;
-  color: #ccc;
+  background: transparent;
+  color: #bbb;
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s;
+}
+
+.settings-action-btn:last-child {
+  margin-bottom: 0;
+}
+
+.settings-action-btn svg {
+  color: #555;
+  flex-shrink: 0;
 }
 
 .settings-action-btn:hover {
-  background: #252525;
-  border-color: #333;
+  background: #222;
 }
 
 .settings-action-btn:active {
-  background: #2a2a2a;
+  background: #282828;
 }
 
 .settings-action-danger {
-  color: #f87171;
+  color: #e57373;
+}
+
+.settings-action-danger svg {
+  color: #b55;
 }
 
 .settings-action-danger:hover {
-  border-color: #5a2a2a;
+  background: #1e1515;
+}
+
+/* Footer */
+.settings-footer {
+  text-align: center;
+  padding: 24px 0 16px;
+  font-size: 11px;
+  color: #333;
 }
 
 /* Main content */
