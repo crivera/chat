@@ -1,6 +1,7 @@
 import { Electroview, type RPCSchema } from "electrobun/view";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebglAddon } from "@xterm/addon-webgl";
 
 type Schema = {
@@ -176,6 +177,10 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
     fontSize: 13,
     fontFamily:
       "'Cascadia Code', 'Consolas', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+    letterSpacing: 0,
+    lineHeight: 1,
+    customGlyphs: true,
+    rescaleOverlappingGlyphs: true,
     theme: {
       background: "#000000",
       foreground: "#cccccc",
@@ -186,6 +191,10 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
 
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
+
+  const unicode11Addon = new Unicode11Addon();
+  term.loadAddon(unicode11Addon);
+  term.unicode.activeVersion = "11";
 
   const container = document.createElement("div");
   container.className = "terminal-container";
