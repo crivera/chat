@@ -120,8 +120,12 @@ function spawnTerminal(folderPath: string, isRestore = false) {
   const claudeArgs = isRestore ? [] : ["--worktree"];
 
   const shell = getShell();
+  // Quote the claude binary path on Windows in case it contains spaces
+  const claudeCmd = isWindows
+    ? [`& '${claudeBin}'`, ...claudeArgs].join(" ")
+    : [claudeBin, ...claudeArgs].join(" ");
   const shellArgs = isWindows
-    ? ["-NoExit", "-Command", [claudeBin, ...claudeArgs].join(" ")]
+    ? ["-NoExit", "-Command", claudeCmd]
     : ["-l", "-c", `${[claudeBin, ...claudeArgs].join(" ")}; exec /bin/zsh -l`];
 
   const pty = ptySpawn(shell, shellArgs, {
@@ -182,9 +186,13 @@ async function ensureClaudeSettings(folderPath: string) {
 
   if (!needsUpdate) return;
 
-  const confirmed = await rpc.request.confirmAction({
-    message: `The project "${folderPath}" is missing or has outdated Claude permission settings.\n\nWould you like to set up recommended permissions?\n(Bash, WebFetch, WebSearch, Context7, Skill)`,
-  });
+  // On Windows, confirm() can cause WebView2 issues, so auto-apply settings
+  let confirmed = true;
+  if (!isWindows) {
+    confirmed = await rpc.request.confirmAction({
+      message: `The project "${folderPath}" is missing or has outdated Claude permission settings.\n\nWould you like to set up recommended permissions?\n(Bash, WebFetch, WebSearch, Context7, Skill)`,
+    });
+  }
 
   if (confirmed) {
     mkdirSync(claudeDir, { recursive: true });
@@ -231,9 +239,19 @@ const rpc = BrowserView.defineRPC<Schema>({
     },
     messages: {
       openTerminal: async ({ folderPath }: { folderPath: string }) => {
-        spawnTerminal(folderPath);
-        persistCurrentProjects();
-        await ensureClaudeSettings(folderPath);
+        try {
+          spawnTerminal(folderPath);
+          persistCurrentProjects();
+        } catch (err) {
+          console.error("Failed to open terminal:", err);
+          return;
+        }
+        // Run settings check separately so it doesn't crash the terminal spawn
+        try {
+          await ensureClaudeSettings(folderPath);
+        } catch (err) {
+          console.error("Failed to ensure Claude settings:", err);
+        }
       },
       closeTerminal: ({ id }: { id: string }) => {
         const terminal = terminals.get(id);
@@ -398,8 +416,16 @@ win.webview.on("dom-ready", () => {
     setTimeout(async () => {
       for (const project of saved) {
         if (existsSync(project.folderPath)) {
-          spawnTerminal(project.folderPath, project.hasWorktree);
-          await ensureClaudeSettings(project.folderPath);
+          try {
+            spawnTerminal(project.folderPath, project.hasWorktree);
+            await ensureClaudeSettings(project.folderPath);
+          } catch (err) {
+            console.error(
+              "Failed to restore project:",
+              project.folderPath,
+              err,
+            );
+          }
         }
       }
     }, 1500);
