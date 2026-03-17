@@ -216,16 +216,40 @@ const rpc = BrowserView.defineRPC<Schema>({
         return new Promise<string | null>((resolve) => {
           setTimeout(async () => {
             try {
-              const result = await Utils.openFileDialog({
-                startingFolder: homedir(),
-                canChooseFiles: false,
-                canChooseDirectory: true,
-                allowsMultipleSelection: false,
-              });
-              if (result && result.length > 0 && result[0] !== "") {
-                resolve(result[0]);
+              if (isWindows) {
+                // Utils.openFileDialog crashes on Windows (libNativeWrapper.dll segfault)
+                // Use PowerShell folder picker as workaround
+                const ps = Bun.spawn(
+                  [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-Command",
+                    [
+                      "Add-Type -AssemblyName System.Windows.Forms",
+                      "$f = New-Object System.Windows.Forms.FolderBrowserDialog",
+                      "$f.Description = 'Select a project folder'",
+                      "$f.RootFolder = 'MyComputer'",
+                      `$f.SelectedPath = '${homedir().replace(/'/g, "''")}'`,
+                      "if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath } else { '' }",
+                    ].join("; "),
+                  ],
+                  { stdout: "pipe", stderr: "pipe" },
+                );
+                const output = (await new Response(ps.stdout).text()).trim();
+                await ps.exited;
+                resolve(output || null);
               } else {
-                resolve(null);
+                const result = await Utils.openFileDialog({
+                  startingFolder: homedir(),
+                  canChooseFiles: false,
+                  canChooseDirectory: true,
+                  allowsMultipleSelection: false,
+                });
+                if (result && result.length > 0 && result[0] !== "") {
+                  resolve(result[0]);
+                } else {
+                  resolve(null);
+                }
               }
             } catch {
               resolve(null);
