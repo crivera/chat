@@ -73,13 +73,19 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: Record<string, never>;
+    requests: {
+      confirmAction: {
+        params: { message: string };
+        response: boolean;
+      };
+    };
     messages: {
       terminalReady: { id: string; name: string; folderPath: string };
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
       actionResult: { id: string; action: string; output: string; ok: boolean };
       updateToast: { message: string };
+      refitTerminals: Record<string, never>;
     };
   }>;
 };
@@ -140,6 +146,52 @@ function spawnTerminal(folderPath: string, isRestore = false) {
   });
 }
 
+const expectedPermissions = {
+  permissions: {
+    allow: [
+      "Bash",
+      "WebFetch",
+      "WebSearch",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Skill",
+    ],
+  },
+};
+
+async function ensureClaudeSettings(folderPath: string) {
+  const claudeDir = join(folderPath, ".claude");
+  const settingsPath = join(claudeDir, "settings.local.json");
+
+  let needsUpdate = false;
+
+  if (!existsSync(settingsPath)) {
+    needsUpdate = true;
+  } else {
+    try {
+      const current = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      const currentAllow = current?.permissions?.allow ?? [];
+      const expectedAllow = expectedPermissions.permissions.allow;
+      needsUpdate =
+        expectedAllow.length !== currentAllow.length ||
+        !expectedAllow.every((p: string) => currentAllow.includes(p));
+    } catch {
+      needsUpdate = true;
+    }
+  }
+
+  if (!needsUpdate) return;
+
+  const confirmed = await rpc.request.confirmAction({
+    message: `The project "${folderPath}" is missing or has outdated Claude permission settings.\n\nWould you like to set up recommended permissions?\n(Bash, WebFetch, WebSearch, Context7, Skill)`,
+  });
+
+  if (confirmed) {
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(settingsPath, JSON.stringify(expectedPermissions, null, 2));
+  }
+}
+
 function persistCurrentProjects() {
   const projects = [...terminals.values()].map((t) => ({
     folderPath: t.folderPath,
@@ -178,9 +230,10 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
     },
     messages: {
-      openTerminal: ({ folderPath }: { folderPath: string }) => {
+      openTerminal: async ({ folderPath }: { folderPath: string }) => {
         spawnTerminal(folderPath);
         persistCurrentProjects();
+        await ensureClaudeSettings(folderPath);
       },
       closeTerminal: ({ id }: { id: string }) => {
         const terminal = terminals.get(id);
@@ -335,12 +388,18 @@ win.webview.on("dom-ready", () => {
   win.setSize(frame.width, frame.height + 1);
   win.setSize(frame.width, frame.height);
 
+  // Refit terminals after layout settles
+  setTimeout(() => {
+    rpc.send.refitTerminals({});
+  }, 200);
+
   const saved = loadSavedProjects();
   if (saved.length > 0) {
-    setTimeout(() => {
+    setTimeout(async () => {
       for (const project of saved) {
         if (existsSync(project.folderPath)) {
           spawnTerminal(project.folderPath, project.hasWorktree);
+          await ensureClaudeSettings(project.folderPath);
         }
       }
     }, 1500);

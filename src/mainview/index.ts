@@ -23,7 +23,12 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: Record<string, never>;
+    requests: {
+      confirmAction: {
+        params: { message: string };
+        response: boolean;
+      };
+    };
     messages: {
       terminalReady: { id: string; name: string; folderPath: string };
       terminalOutput: { id: string; data: string };
@@ -35,6 +40,7 @@ type Schema = {
         ok: boolean;
       };
       updateToast: { message: string };
+      refitTerminals: Record<string, never>;
     };
   }>;
 };
@@ -42,6 +48,11 @@ type Schema = {
 const rpc = Electroview.defineRPC<Schema>({
   maxRequestTime: 120000,
   handlers: {
+    requests: {
+      confirmAction: ({ message }: { message: string }) => {
+        return confirm(message);
+      },
+    },
     messages: {
       terminalReady: ({
         id,
@@ -78,6 +89,11 @@ const rpc = Electroview.defineRPC<Schema>({
       },
       updateToast: ({ message }: { message: string }) => {
         showToast("Update", message, true);
+      },
+      refitTerminals: () => {
+        for (const entry of terminals.values()) {
+          entry.fitAddon.fit();
+        }
       },
     },
   },
