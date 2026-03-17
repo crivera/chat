@@ -8,7 +8,14 @@ import {
 } from "electrobun/bun";
 import { homedir, platform } from "os";
 import { join } from "path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+} from "fs";
 import { spawn as ptySpawn } from "bun-pty";
 import pkg from "../../package.json";
 
@@ -72,6 +79,7 @@ type Schema = {
       openTerminal: { folderPath: string };
       closeTerminal: { id: string };
       terminalInput: { id: string; data: string };
+      terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
     };
   }>;
@@ -212,6 +220,31 @@ async function ensureClaudeSettings(folderPath: string) {
   }
 }
 
+function getActiveWorktreePath(folderPath: string): string | null {
+  const worktreesDir = join(folderPath, ".claude", "worktrees");
+  if (!existsSync(worktreesDir)) return null;
+  try {
+    const entries = readdirSync(worktreesDir)
+      .map((name) => {
+        const full = join(worktreesDir, name);
+        try {
+          return { path: full, mtime: statSync(full).mtimeMs };
+        } catch {
+          return null;
+        }
+      })
+      .filter(
+        (e): e is { path: string; mtime: number } =>
+          e !== null && statSync(e.path).isDirectory(),
+      );
+    if (entries.length === 0) return null;
+    entries.sort((a, b) => b.mtime - a.mtime);
+    return entries[0].path;
+  } catch {
+    return null;
+  }
+}
+
 function persistCurrentProjects() {
   const projects = [...terminals.values()].map((t) => ({
     folderPath: t.folderPath,
@@ -316,6 +349,20 @@ const rpc = BrowserView.defineRPC<Schema>({
           terminal.pty.write(data);
         }
       },
+      terminalResize: ({
+        id,
+        cols,
+        rows,
+      }: {
+        id: string;
+        cols: number;
+        rows: number;
+      }) => {
+        const terminal = terminals.get(id);
+        if (terminal) {
+          terminal.pty.resize(cols, rows);
+        }
+      },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
         if (!terminal) return;
@@ -337,12 +384,16 @@ const rpc = BrowserView.defineRPC<Schema>({
         };
 
         switch (action) {
-          case "vscode":
-            Bun.spawn([isWindows ? "code.cmd" : "code", folder], {
+          case "vscode": {
+            const worktree = terminal.hasWorktree
+              ? getActiveWorktreePath(folder)
+              : null;
+            Bun.spawn([isWindows ? "code.cmd" : "code", worktree || folder], {
               stdout: "ignore",
               stderr: "ignore",
             });
             break;
+          }
           case "finder":
             Bun.spawn([isWindows ? "explorer.exe" : "open", folder], {
               stdout: "ignore",

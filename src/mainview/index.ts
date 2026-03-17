@@ -23,6 +23,7 @@ type Schema = {
       openTerminal: { folderPath: string };
       closeTerminal: { id: string };
       terminalInput: { id: string; data: string };
+      terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
     };
   }>;
@@ -216,6 +217,10 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
 
   term.onData((data) => {
     rpc.send.terminalInput({ id, data });
+  });
+
+  term.onResize(({ cols, rows }) => {
+    rpc.send.terminalResize({ id, cols, rows });
   });
 
   const listItem = createProjectListItem(id, name);
