@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat</title>
+    <link rel="stylesheet" href="xterm.css" />
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">PROJECTS</span>
+          <button id="add-project-btn" title="Add project">+</button>
+        </div>
+        <div id="project-list"></div>
+        <div class="sidebar-footer">
+          <button id="settings-btn" class="settings-label">&#x2699; Settings</button>
+        </div>
+      </aside>
+      <div id="main-content">
+        <div id="toolbar" style="display:none">
+          <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-open-vscode" title="Open in VS Code">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l5 2.5v13L16 21l-11-5.5L16 3z"/><path d="M5 15.5L2 17V7l3 1.5"/><path d="M16 3L5 9.5v6L16 21"/></svg>
+              VS Code
+            </button>
+            <button class="toolbar-btn" id="btn-open-finder" title="Reveal in Finder">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Finder
+            </button>
+          </div>
+          <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-git-status" title="Git status">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>
+              Status
+            </button>
+            <button class="toolbar-btn" id="btn-git-pull" title="Git pull">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+              Pull
+            </button>
+            <button class="toolbar-btn" id="btn-git-commit" title="Git commit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M1.05 12H7m10 0h5.95"/></svg>
+              Commit
+            </button>
+          </div>
+        </div>
+        <div id="terminal-area">
+          <div id="empty-state">
+            <p>Click <strong>+</strong> to open a project folder</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="settings-panel" class="settings-panel">
+      <div class="settings-header">
+        <button id="settings-back" class="settings-back-btn">&#x2190;</button>
+        <span class="settings-title">Settings</span>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <div class="settings-section-title">About</div>
+          <div class="settings-row">
+            <span class="settings-row-label">App</span>
+            <span class="settings-row-value">Chat</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Version</span>
+            <span class="settings-row-value">1.0.0</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Runtime</span>
+            <span class="settings-row-value">Electrobun</span>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Session</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Open projects</span>
+            <span class="settings-row-value" id="settings-project-count">0</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Config path</span>
+            <span class="settings-row-value settings-row-mono">~/.config/chat-app/</span>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Actions</div>
+          <button class="settings-action-btn" id="settings-close-all">Close all projects</button>
+          <button class="settings-action-btn settings-action-danger" id="settings-clear-data">Clear saved data</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="index.js"></script>
+  </body>
+</html>
