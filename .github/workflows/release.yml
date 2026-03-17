@@ -34,9 +34,10 @@ jobs:
       - name: Build
         run: bun run build:${{ steps.channel.outputs.channel }}
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          ELECTROBUN_DEVELOPER_ID: ${{ secrets.ELECTROBUN_DEVELOPER_ID }}
+          ELECTROBUN_TEAMID: ${{ secrets.ELECTROBUN_TEAMID }}
+          ELECTROBUN_APPLEID: ${{ secrets.ELECTROBUN_APPLEID }}
+          ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
@@ -45,4 +46,4 @@ jobs:
           prerelease: ${{ steps.channel.outputs.channel == 'canary' }}
           generate_release_notes: true
           files: |
-            dist/*
+            artifacts/*

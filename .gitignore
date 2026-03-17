@@ -1,5 +1,5 @@
 node_modules/
 build/
+artifacts/
 .DS_Store
-node_modules
 secret

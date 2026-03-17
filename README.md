@@ -48,6 +48,7 @@ Add these to your GitHub repo settings under **Settings > Secrets and variables 
 
 | Secret | Description |
 |---|---|
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
-| `APPLE_ID` | Apple ID email for notarization |
-| `APPLE_ID_PASSWORD` | App-specific password for notarization |
+| `ELECTROBUN_DEVELOPER_ID` | Developer ID Application certificate name |
+| `ELECTROBUN_TEAMID` | Apple Developer Team ID |
+| `ELECTROBUN_APPLEID` | Apple ID email for notarization |
+| `ELECTROBUN_APPLEIDPASS` | App-specific password for notarization |

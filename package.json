@@ -13,8 +13,8 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "build:stable": "electrobun build --channel stable",
-    "build:canary": "electrobun build --channel canary",
+    "build:stable": "electrobun build --env=stable",
+    "build:canary": "electrobun build --env=canary",
     "prepare": "husky"
   },
   "devDependencies": {
