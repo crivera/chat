@@ -153,7 +153,14 @@ function spawnTerminal(folderPath: string, isRestore = false) {
     cols: 120,
     rows: 30,
     cwd: folderPath,
-    env: { ...process.env, TERM: "xterm-256color" },
+    env: {
+      ...process.env,
+      TERM: "xterm-256color",
+      // GUI apps on macOS don't inherit the user's shell PATH — ensure ~/.local/bin is present
+      PATH: [join(homedir(), ".local", "bin"), process.env.PATH]
+        .filter(Boolean)
+        .join(isWindows ? ";" : ":"),
+    },
   });
 
   terminals.set(id, { id, name, folderPath, hasWorktree: true, pty });
@@ -388,10 +395,19 @@ const rpc = BrowserView.defineRPC<Schema>({
             const worktree = terminal.hasWorktree
               ? getActiveWorktreePath(folder)
               : null;
-            Bun.spawn([isWindows ? "code.cmd" : "code", worktree || folder], {
-              stdout: "ignore",
-              stderr: "ignore",
-            });
+            const target = worktree || folder;
+            if (isWindows) {
+              Bun.spawn(["code.cmd", target], {
+                stdout: "ignore",
+                stderr: "ignore",
+              });
+            } else {
+              // Use `open -a` on macOS — the `code` CLI may not be in PATH for GUI apps
+              Bun.spawn(["open", "-a", "Visual Studio Code", target], {
+                stdout: "ignore",
+                stderr: "ignore",
+              });
+            }
             break;
           }
           case "finder":
