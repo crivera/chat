@@ -9,7 +9,25 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  determine-channel:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
+      tag: ${{ steps.channel.outputs.tag }}
+    steps:
+      - name: Determine release channel
+        id: channel
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == *"-canary"* ]]; then
+            echo "channel=canary" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  build-macos:
+    needs: determine-channel
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,30 +57,62 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Determine release channel
-        id: channel
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          if [[ "$TAG" == *"-canary"* ]]; then
-            echo "channel=canary" >> "$GITHUB_OUTPUT"
-          else
-            echo "channel=stable" >> "$GITHUB_OUTPUT"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
       - name: Build
-        run: bun run build:${{ steps.channel.outputs.channel }}
+        run: bun run build:${{ needs.determine-channel.outputs.channel }}
         env:
           ELECTROBUN_DEVELOPER_ID: ${{ secrets.ELECTROBUN_DEVELOPER_ID }}
           ELECTROBUN_TEAMID: ${{ secrets.ELECTROBUN_TEAMID }}
           ELECTROBUN_APPLEID: ${{ secrets.ELECTROBUN_APPLEID }}
           ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: artifacts/*
+
+  build-windows:
+    needs: determine-channel
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Build
+        run: bun run build:${{ needs.determine-channel.outputs.channel }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/*
+
+  release:
+    needs: [determine-channel, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: artifacts
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts
+
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.channel.outputs.tag }}
-          prerelease: ${{ steps.channel.outputs.channel == 'canary' }}
+          tag_name: ${{ needs.determine-channel.outputs.tag }}
+          prerelease: ${{ needs.determine-channel.outputs.channel == 'canary' }}
           generate_release_notes: true
           files: |
             artifacts/*

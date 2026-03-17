@@ -6,13 +6,21 @@ import {
   Utils,
   type RPCSchema,
 } from "electrobun/bun";
-import { homedir } from "os";
+import { homedir, platform } from "os";
 import { join } from "path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { spawn as ptySpawn } from "bun-pty";
 import pkg from "../../package.json";
 
+const isWindows = platform() === "win32";
+
 // Persistence
-const configDir = join(homedir(), ".config", "chat-app");
+const configDir = isWindows
+  ? join(
+      process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+      "chat-app",
+    )
+  : join(homedir(), ".config", "chat-app");
 const configFile = join(configDir, "projects.json");
 
 interface SavedProject {
@@ -80,61 +88,52 @@ interface TerminalProcess {
   name: string;
   folderPath: string;
   hasWorktree: boolean;
-  proc: ReturnType<typeof Bun.spawn>;
+  pty: ReturnType<typeof ptySpawn>;
 }
 
 const terminals = new Map<string, TerminalProcess>();
 let nextId = 1;
 
+function getClaudeBin(): string {
+  return isWindows
+    ? join(homedir(), ".local", "bin", "claude.exe")
+    : join(homedir(), ".local", "bin", "claude");
+}
+
+function getShell(): string {
+  return isWindows ? "powershell.exe" : "/bin/zsh";
+}
+
 function spawnTerminal(folderPath: string, isRestore = false) {
   const id = String(nextId++);
-  const name = folderPath.split("/").pop() || folderPath;
+  const sep = isWindows ? "\\" : "/";
+  const name = folderPath.split(sep).pop() || folderPath;
 
-  // First open: use --worktree to create a new worktree
-  // Restore: worktree already exists, just run claude
-  const claudeBin = join(homedir(), ".local", "bin", "claude");
-  const claudeCmd = isRestore ? claudeBin : `${claudeBin} --worktree`;
-  const escaped = folderPath.replace(/"/g, '\\"');
+  const claudeBin = getClaudeBin();
+  const claudeArgs = isRestore ? [] : ["--worktree"];
 
-  const proc = Bun.spawn(
-    [
-      "python3",
-      "-c",
-      `import pty,os;os.chdir("${escaped}");pty.spawn(["/bin/zsh","-l","-c","${claudeCmd}; exec /bin/zsh -l"])`,
-    ],
-    {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe",
-      env: { ...process.env, TERM: "xterm-256color" },
-    },
-  );
+  const shell = getShell();
+  const shellArgs = isWindows
+    ? ["-NoExit", "-Command", [claudeBin, ...claudeArgs].join(" ")]
+    : ["-l", "-c", `${[claudeBin, ...claudeArgs].join(" ")}; exec /bin/zsh -l`];
 
-  terminals.set(id, { id, name, folderPath, hasWorktree: true, proc });
+  const pty = ptySpawn(shell, shellArgs, {
+    name: "xterm-256color",
+    cols: 120,
+    rows: 30,
+    cwd: folderPath,
+    env: { ...process.env, TERM: "xterm-256color" },
+  });
+
+  terminals.set(id, { id, name, folderPath, hasWorktree: true, pty });
 
   rpc.send.terminalReady({ id, name, folderPath });
 
-  const readStream = async (
-    stream: ReadableStream<Uint8Array>,
-    termId: string,
-  ) => {
-    const reader = stream.getReader();
-    const decoder = new TextDecoder();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        rpc.send.terminalOutput({ id: termId, data: decoder.decode(value) });
-      }
-    } catch {
-      // Stream ended
-    }
-  };
+  pty.onData((data: string) => {
+    rpc.send.terminalOutput({ id, data });
+  });
 
-  readStream(proc.stdout as ReadableStream<Uint8Array>, id);
-  readStream(proc.stderr as ReadableStream<Uint8Array>, id);
-
-  proc.exited.then(() => {
+  pty.onExit(() => {
     terminals.delete(id);
     rpc.send.terminalExit({ id });
   });
@@ -185,7 +184,7 @@ const rpc = BrowserView.defineRPC<Schema>({
       closeTerminal: ({ id }: { id: string }) => {
         const terminal = terminals.get(id);
         if (terminal) {
-          terminal.proc.kill();
+          terminal.pty.kill();
           terminals.delete(id);
           persistCurrentProjects();
         }
@@ -193,8 +192,7 @@ const rpc = BrowserView.defineRPC<Schema>({
       terminalInput: ({ id, data }: { id: string; data: string }) => {
         const terminal = terminals.get(id);
         if (terminal) {
-          terminal.proc.stdin.write(new TextEncoder().encode(data));
-          terminal.proc.stdin.flush();
+          terminal.pty.write(data);
         }
       },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
@@ -219,13 +217,13 @@ const rpc = BrowserView.defineRPC<Schema>({
 
         switch (action) {
           case "vscode":
-            Bun.spawn(["code", folder], {
+            Bun.spawn([isWindows ? "code.cmd" : "code", folder], {
               stdout: "ignore",
               stderr: "ignore",
             });
             break;
           case "finder":
-            Bun.spawn(["open", folder], {
+            Bun.spawn([isWindows ? "explorer.exe" : "open", folder], {
               stdout: "ignore",
               stderr: "ignore",
             });
@@ -322,7 +320,7 @@ const win = new BrowserWindow({
   frame: {
     x: 0,
     y: 0,
-    width: 1100,
+    width: 1400,
     height: 750,
   },
   url: "views://mainview/index.html",
