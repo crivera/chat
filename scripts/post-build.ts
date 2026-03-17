@@ -14,7 +14,15 @@ if (!existsSync(icoPath)) {
   process.exit(0);
 }
 
-const rcedit = join(
+// Look for rcedit in node_modules first, then fall back to global install
+const localRcedit = join(
+  projectRoot,
+  "node_modules",
+  "rcedit",
+  "bin",
+  "rcedit-x64.exe",
+);
+const globalRcedit = join(
   process.env.APPDATA || "",
   "npm",
   "node_modules",
@@ -23,10 +31,10 @@ const rcedit = join(
   "rcedit-x64.exe",
 );
 
+const rcedit = existsSync(localRcedit) ? localRcedit : globalRcedit;
+
 if (!existsSync(rcedit)) {
-  console.log(
-    "[post-build] rcedit not found. Install with: npm install -g rcedit",
-  );
+  console.log("[post-build] rcedit not found. Install with: bun add -d rcedit");
   process.exit(1);
 }
 
