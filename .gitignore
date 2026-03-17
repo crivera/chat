@@ -3,3 +3,4 @@ build/
 artifacts/
 .DS_Store
 secret
+cert.p12
