@@ -193,9 +193,13 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
 
-  const unicode11Addon = new Unicode11Addon();
-  term.loadAddon(unicode11Addon);
-  term.unicode.activeVersion = "11";
+  try {
+    const unicode11Addon = new Unicode11Addon();
+    term.loadAddon(unicode11Addon);
+    term.unicode.activeVersion = "11";
+  } catch {
+    // Unicode 11 addon not available, continue with default
+  }
 
   const container = document.createElement("div");
   container.className = "terminal-container";
