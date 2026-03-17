@@ -322,7 +322,7 @@ const win = new BrowserWindow({
     x: 0,
     y: 0,
     width: 1400,
-    height: 750,
+    height: 900,
   },
   url: "views://mainview/index.html",
   rpc,
@@ -330,6 +330,11 @@ const win = new BrowserWindow({
 
 // Restore saved projects after webview is ready
 win.webview.on("dom-ready", () => {
+  // Force WebView2 to recalculate layout on Windows by nudging the size
+  const frame = win.getFrame();
+  win.setSize(frame.width, frame.height + 1);
+  win.setSize(frame.width, frame.height);
+
   const saved = loadSavedProjects();
   if (saved.length > 0) {
     setTimeout(() => {

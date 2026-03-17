@@ -1,6 +1,7 @@
 import { Electroview, type RPCSchema } from "electrobun/view";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 
 type Schema = {
   bun: RPCSchema<{
@@ -154,7 +155,8 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
   const term = new Terminal({
     cursorBlink: true,
     fontSize: 13,
-    fontFamily: "'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+    fontFamily:
+      "'Cascadia Code', 'Consolas', 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
     theme: {
       background: "#000000",
       foreground: "#cccccc",
@@ -172,6 +174,12 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
   terminalArea.appendChild(container);
 
   term.open(container);
+
+  try {
+    term.loadAddon(new WebglAddon());
+  } catch {
+    // WebGL not available, fall back to default canvas renderer
+  }
 
   requestAnimationFrame(() => {
     fitAddon.fit();
