@@ -111,10 +111,19 @@ function getShell(): string {
   return isWindows ? "powershell.exe" : "/bin/zsh";
 }
 
+function ensureGitRepo(folderPath: string) {
+  const gitDir = join(folderPath, ".git");
+  if (!existsSync(gitDir)) {
+    Bun.spawnSync(["git", "init"], { cwd: folderPath });
+  }
+}
+
 function spawnTerminal(folderPath: string, isRestore = false) {
   const id = String(nextId++);
   const sep = isWindows ? "\\" : "/";
   const name = folderPath.split(sep).pop() || folderPath;
+
+  ensureGitRepo(folderPath);
 
   const claudeBin = getClaudeBin();
   const claudeArgs = isRestore ? [] : ["--worktree"];
