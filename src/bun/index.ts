@@ -91,7 +91,8 @@ function spawnTerminal(folderPath: string, isRestore = false) {
 
   // First open: use --worktree to create a new worktree
   // Restore: worktree already exists, just run claude
-  const claudeCmd = isRestore ? "claude" : "claude --worktree";
+  const claudeBin = join(homedir(), ".local", "bin", "claude");
+  const claudeCmd = isRestore ? claudeBin : `${claudeBin} --worktree`;
   const escaped = folderPath.replace(/"/g, '\\"');
 
   const proc = Bun.spawn(
