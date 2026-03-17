@@ -2,6 +2,7 @@ import {
   ApplicationMenu,
   BrowserView,
   BrowserWindow,
+  Updater,
   Utils,
   type RPCSchema,
 } from "electrobun/bun";
@@ -341,3 +342,22 @@ win.webview.on("dom-ready", () => {
     }, 1500);
   }
 });
+
+// Auto-update: check on launch, then every 30 minutes
+async function checkForUpdates() {
+  try {
+    const result = await Updater.checkForUpdate();
+    if (result.updateAvailable) {
+      await Updater.downloadUpdate();
+      const info = Updater.updateInfo();
+      if (info.updateReady) {
+        await Updater.applyUpdate();
+      }
+    }
+  } catch {
+    // Update check failed silently — will retry next interval
+  }
+}
+
+checkForUpdates();
+setInterval(checkForUpdates, 30 * 60 * 1000);
