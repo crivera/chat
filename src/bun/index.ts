@@ -15,6 +15,7 @@ import {
   mkdirSync,
   readdirSync,
   statSync,
+  chmodSync,
 } from "fs";
 import { spawn as ptySpawn } from "bun-pty";
 import pkg from "../../package.json";
@@ -29,6 +30,34 @@ const configDir = isWindows
     )
   : join(homedir(), ".config", "chat-app");
 const configFile = join(configDir, "projects.json");
+const settingsFile = join(configDir, "settings.json");
+
+interface AppSettings {
+  useWorktree: boolean;
+}
+
+const defaultSettings: AppSettings = { useWorktree: true };
+
+function loadSettings(): AppSettings {
+  try {
+    if (existsSync(settingsFile)) {
+      return {
+        ...defaultSettings,
+        ...JSON.parse(readFileSync(settingsFile, "utf-8")),
+      };
+    }
+  } catch {
+    // Corrupt file, use defaults
+  }
+  return { ...defaultSettings };
+}
+
+function saveSettings(settings: AppSettings) {
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+}
+
+let appSettings = loadSettings();
 
 interface SavedProject {
   folderPath: string;
@@ -60,6 +89,22 @@ function saveProjects(projects: SavedProject[]) {
   writeFileSync(configFile, JSON.stringify(projects, null, 2));
 }
 
+// Browser bridge: write a shell script that routes browser opens back to the app
+function ensureBridgeScript(): string {
+  mkdirSync(configDir, { recursive: true });
+  const scriptPath = join(configDir, "open-in-chat.sh");
+  const script = [
+    "#!/bin/sh",
+    "curl -s \"http://127.0.0.1:${CHAT_BROWSER_PORT}/open?url=$(printf '%s' \"$1\" | sed 's/ /%20/g;s/?/%3F/g;s/&/%26/g;s/=/%3D/g;s/#/%23/g')\" > /dev/null 2>&1",
+    "",
+  ].join("\n");
+  writeFileSync(scriptPath, script);
+  chmodSync(scriptPath, 0o755);
+  return scriptPath;
+}
+
+const bridgeScriptPath = ensureBridgeScript();
+
 type Schema = {
   bun: RPCSchema<{
     requests: {
@@ -71,6 +116,14 @@ type Schema = {
         params: Record<string, never>;
         response: { version: string };
       };
+      getSettings: {
+        params: Record<string, never>;
+        response: AppSettings;
+      };
+      setSettings: {
+        params: AppSettings;
+        response: void;
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;
@@ -81,6 +134,7 @@ type Schema = {
       terminalInput: { id: string; data: string };
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
+      closeBrowser: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{
@@ -97,6 +151,7 @@ type Schema = {
       actionResult: { id: string; action: string; output: string; ok: boolean };
       updateToast: { message: string };
       refitTerminals: Record<string, never>;
+      browserOpen: { url: string };
     };
   }>;
 };
@@ -137,7 +192,8 @@ function spawnTerminal(folderPath: string, isRestore = false) {
   ensureGitRepo(folderPath);
 
   const claudeBin = getClaudeBin();
-  const claudeArgs = isRestore ? [] : ["--worktree"];
+  const useWorktree = !isRestore && appSettings.useWorktree;
+  const claudeArgs = useWorktree ? ["--worktree"] : [];
 
   const shell = getShell();
   // Quote the claude binary path on Windows in case it contains spaces
@@ -160,6 +216,9 @@ function spawnTerminal(folderPath: string, isRestore = false) {
       PATH: [join(homedir(), ".local", "bin"), process.env.PATH]
         .filter(Boolean)
         .join(isWindows ? ";" : ":"),
+      CHAT_BROWSER_PORT: String(browserBridgePort),
+      PLANNOTATOR_BROWSER: bridgeScriptPath,
+      BROWSER: bridgeScriptPath,
     },
   });
 
@@ -312,6 +371,13 @@ const rpc = BrowserView.defineRPC<Schema>({
       getAppInfo: () => {
         return { version: pkg.version };
       },
+      getSettings: () => {
+        return { ...appSettings };
+      },
+      setSettings: (settings: AppSettings) => {
+        appSettings = { ...appSettings, ...settings };
+        saveSettings(appSettings);
+      },
     },
     messages: {
       minimizeWindow: () => {
@@ -369,6 +435,9 @@ const rpc = BrowserView.defineRPC<Schema>({
         if (terminal) {
           terminal.pty.resize(cols, rows);
         }
+      },
+      closeBrowser: () => {
+        // No backend action needed; frontend handles UI toggle
       },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
@@ -462,6 +531,24 @@ const rpc = BrowserView.defineRPC<Schema>({
     },
   },
 });
+
+// HTTP bridge server: receives browser-open requests from the bridge script
+const browserBridge = Bun.serve({
+  port: 0,
+  hostname: "127.0.0.1",
+  fetch(req) {
+    const reqUrl = new URL(req.url);
+    if (reqUrl.pathname === "/open") {
+      const targetUrl = reqUrl.searchParams.get("url");
+      if (targetUrl) {
+        rpc.send.browserOpen({ url: targetUrl });
+      }
+      return new Response("ok");
+    }
+    return new Response("not found", { status: 404 });
+  },
+});
+const browserBridgePort = browserBridge.port;
 
 ApplicationMenu.setApplicationMenu([
   {
