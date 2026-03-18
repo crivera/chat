@@ -22,6 +22,34 @@ import pkg from "../../package.json";
 
 const isWindows = platform() === "win32";
 
+/**
+ * On macOS, GUI apps don't inherit the user's shell environment.
+ * Spawn a login shell at startup to capture the full env (PATH, etc.).
+ */
+function resolveUserEnv(): Record<string, string> {
+  if (isWindows) return { ...process.env } as Record<string, string>;
+  try {
+    const shell = process.env.SHELL || "/bin/zsh";
+    const result = Bun.spawnSync([shell, "-l", "-c", "env -0"], {
+      env: process.env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = result.stdout.toString();
+    if (!output) return { ...process.env } as Record<string, string>;
+    const env: Record<string, string> = {};
+    for (const entry of output.split("\0")) {
+      const idx = entry.indexOf("=");
+      if (idx > 0) env[entry.slice(0, idx)] = entry.slice(idx + 1);
+    }
+    return env;
+  } catch {
+    return { ...process.env } as Record<string, string>;
+  }
+}
+
+const userEnv = resolveUserEnv();
+
 // Persistence
 const configDir = isWindows
   ? join(
@@ -210,10 +238,10 @@ function spawnTerminal(folderPath: string, isRestore = false) {
     rows: 30,
     cwd: folderPath,
     env: {
-      ...process.env,
+      ...userEnv,
       TERM: "xterm-256color",
-      // GUI apps on macOS don't inherit the user's shell PATH — ensure ~/.local/bin is present
-      PATH: [join(homedir(), ".local", "bin"), process.env.PATH]
+      // Ensure ~/.local/bin is on PATH even if the user's profile doesn't add it
+      PATH: [join(homedir(), ".local", "bin"), userEnv.PATH || process.env.PATH]
         .filter(Boolean)
         .join(isWindows ? ";" : ":"),
       CHAT_BROWSER_PORT: String(browserBridgePort),
@@ -447,6 +475,7 @@ const rpc = BrowserView.defineRPC<Schema>({
         const runGit = async (args: string[]) => {
           const proc = Bun.spawn(["git", ...args], {
             cwd: folder,
+            env: userEnv,
             stdout: "pipe",
             stderr: "pipe",
           });
