@@ -286,6 +286,7 @@ function markActive(id: string) {
   const entry = terminals.get(id);
   if (!entry) return;
   if (id === activeId) return;
+  entry.listItem.classList.remove("done");
   entry.listItem.classList.add("working");
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   entry.idleTimer = setTimeout(() => {
@@ -369,6 +370,10 @@ function selectProject(id: string) {
     entry.listItem.classList.toggle("active", isActive);
     if (isActive) {
       entry.listItem.classList.remove("done", "working");
+      if (entry.idleTimer) {
+        clearTimeout(entry.idleTimer);
+        entry.idleTimer = null;
+      }
       requestAnimationFrame(() => {
         entry.fitAddon.fit();
         entry.terminal.focus();
