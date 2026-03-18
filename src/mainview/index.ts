@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 
 type Schema = {
   bun: RPCSchema<{
@@ -15,6 +16,14 @@ type Schema = {
         params: Record<string, never>;
         response: { version: string };
       };
+      getSettings: {
+        params: Record<string, never>;
+        response: { useWorktree: boolean };
+      };
+      setSettings: {
+        params: { useWorktree: boolean };
+        response: void;
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;
@@ -25,6 +34,7 @@ type Schema = {
       terminalInput: { id: string; data: string };
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
+      closeBrowser: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{
@@ -46,6 +56,7 @@ type Schema = {
       };
       updateToast: { message: string };
       refitTerminals: Record<string, never>;
+      browserOpen: { url: string };
     };
   }>;
 };
@@ -100,6 +111,9 @@ const rpc = Electroview.defineRPC<Schema>({
           entry.fitAddon.fit();
         }
       },
+      browserOpen: ({ url }: { url: string }) => {
+        showBrowserOverlay(url);
+      },
     },
   },
 });
@@ -119,6 +133,7 @@ interface TerminalEntry {
 
 const terminals = new Map<string, TerminalEntry>();
 let activeId: string | null = null;
+let browserOverlay: HTMLDivElement | null = null;
 
 const projectList = document.getElementById("project-list")!;
 const terminalArea = document.getElementById("terminal-area")!;
@@ -129,15 +144,27 @@ const settingsPanel = document.getElementById("settings-panel")!;
 const settingsBtn = document.getElementById("settings-btn")!;
 const settingsBack = document.getElementById("settings-back")!;
 
+const worktreeToggle = document.getElementById(
+  "settings-worktree",
+)! as HTMLInputElement;
+
+worktreeToggle.addEventListener("change", () => {
+  rpc.request.setSettings({ useWorktree: worktreeToggle.checked });
+});
+
 async function showSettings() {
   settingsPanel.classList.add("open");
   settingsPanel.querySelector<HTMLSpanElement>(
     "#settings-project-count",
   )!.textContent = String(terminals.size);
-  const info = await rpc.request.getAppInfo({});
+  const [info, settings] = await Promise.all([
+    rpc.request.getAppInfo({}),
+    rpc.request.getSettings({}),
+  ]);
   settingsPanel.querySelector<HTMLSpanElement>(
     "#settings-version",
   )!.textContent = info.version;
+  worktreeToggle.checked = settings.useWorktree;
 }
 
 function hideSettings() {
@@ -212,6 +239,16 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
     term.loadAddon(new WebglAddon());
   } catch {
     // WebGL not available, fall back to default canvas renderer
+  }
+
+  try {
+    term.loadAddon(
+      new WebLinksAddon((_event, url) => {
+        showBrowserOverlay(url);
+      }),
+    );
+  } catch {
+    // Web links addon not available, continue without clickable links
   }
 
   requestAnimationFrame(() => {
@@ -322,6 +359,8 @@ function createProjectListItem(id: string, name: string): HTMLDivElement {
 }
 
 function selectProject(id: string) {
+  if (browserOverlay) closeBrowserOverlay();
+
   activeId = id;
 
   for (const [entryId, entry] of terminals) {
@@ -344,6 +383,8 @@ function selectProject(id: string) {
 function removeProject(id: string) {
   const entry = terminals.get(id);
   if (!entry) return;
+
+  if (activeId === id && browserOverlay) closeBrowserOverlay();
 
   entry.terminal.dispose();
   entry.container.remove();
@@ -368,6 +409,67 @@ window.addEventListener("resize", () => {
     if (entry) {
       entry.fitAddon.fit();
     }
+  }
+});
+
+// Browser overlay: shows a URL in an iframe replacing the terminal
+function showBrowserOverlay(url: string) {
+  if (browserOverlay) {
+    const iframe = browserOverlay.querySelector("iframe");
+    if (iframe) iframe.src = url;
+    return;
+  }
+
+  browserOverlay = document.createElement("div");
+  browserOverlay.id = "browser-overlay";
+  browserOverlay.innerHTML = `
+    <div class="browser-toolbar">
+      <span class="browser-url">${url}</span>
+      <button class="browser-close-btn" title="Close browser">&#x2715; Close</button>
+    </div>
+    <iframe src="${url}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  `;
+
+  browserOverlay
+    .querySelector(".browser-close-btn")!
+    .addEventListener("click", () => {
+      closeBrowserOverlay();
+    });
+
+  // Hide all terminal containers
+  for (const entry of terminals.values()) {
+    entry.container.style.display = "none";
+  }
+
+  terminalArea.appendChild(browserOverlay);
+}
+
+function closeBrowserOverlay() {
+  if (!browserOverlay) return;
+  browserOverlay.remove();
+  browserOverlay = null;
+
+  // Restore the active terminal container
+  for (const entry of terminals.values()) {
+    entry.container.style.display = "";
+  }
+  if (activeId) {
+    const entry = terminals.get(activeId);
+    if (entry) {
+      entry.container.classList.add("active");
+      requestAnimationFrame(() => {
+        entry.fitAddon.fit();
+        entry.terminal.focus();
+      });
+    }
+  }
+
+  rpc.send.closeBrowser({});
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && browserOverlay) {
+    closeBrowserOverlay();
   }
 });
 
