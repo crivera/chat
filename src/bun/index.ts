@@ -30,7 +30,7 @@ function resolveUserEnv(): Record<string, string> {
   if (isWindows) return { ...process.env } as Record<string, string>;
   try {
     const shell = process.env.SHELL || "/bin/zsh";
-    const result = Bun.spawnSync([shell, "-l", "-c", "env -0"], {
+    const result = Bun.spawnSync([shell, "-li", "-c", "env -0"], {
       env: process.env,
       stdout: "pipe",
       stderr: "pipe",
