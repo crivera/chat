@@ -212,12 +212,69 @@ function ensureGitRepo(folderPath: string) {
   }
 }
 
+/** If the current branch's remote tracking branch is gone, switch to the default branch and pull. */
+function ensureBranchExists(folderPath: string) {
+  const git = (args: string[]) =>
+    Bun.spawnSync(["git", ...args], {
+      cwd: folderPath,
+      env: userEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+  // Get the current branch name
+  const branchResult = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const currentBranch = branchResult.stdout.toString().trim();
+  if (!currentBranch || currentBranch === "HEAD") return;
+
+  // Check if this branch has a remote tracking ref
+  const trackingResult = git([
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+  ]);
+  if (trackingResult.exitCode !== 0) return; // no tracking branch, nothing to check
+
+  // Fetch and prune stale remote refs
+  git(["fetch", "--prune"]);
+
+  // Check again if the tracking ref still exists after prune
+  const recheckResult = git([
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+  ]);
+  if (recheckResult.exitCode === 0) return; // remote branch still exists, all good
+
+  // Remote branch is gone — find the default branch
+  const branchList = git(["branch", "--list"]);
+  const branches = branchList.stdout
+    .toString()
+    .split("\n")
+    .map((b: string) => b.replace("*", "").trim())
+    .filter(Boolean);
+  const defaultBranch =
+    branches.find((b: string) => b === "main") ||
+    branches.find((b: string) => b === "develop") ||
+    branches.find((b: string) => b === "master");
+  if (!defaultBranch) return;
+
+  git(["checkout", defaultBranch]);
+  git(["pull"]);
+  console.log(
+    `Branch "${currentBranch}" remote was deleted — switched to ${defaultBranch}`,
+  );
+}
+
 function spawnTerminal(folderPath: string, isRestore = false) {
   const id = String(nextId++);
   const sep = isWindows ? "\\" : "/";
   const name = folderPath.split(sep).pop() || folderPath;
 
   ensureGitRepo(folderPath);
+  ensureBranchExists(folderPath);
 
   const claudeBin = getClaudeBin();
   const useWorktree = !isRestore && appSettings.useWorktree;
