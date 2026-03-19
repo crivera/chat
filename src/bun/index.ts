@@ -22,6 +22,34 @@ import pkg from "../../package.json";
 
 const isWindows = platform() === "win32";
 
+/**
+ * On macOS, GUI apps don't inherit the user's shell environment.
+ * Spawn a login shell at startup to capture the full env (PATH, etc.).
+ */
+function resolveUserEnv(): Record<string, string> {
+  if (isWindows) return { ...process.env } as Record<string, string>;
+  try {
+    const shell = process.env.SHELL || "/bin/zsh";
+    const result = Bun.spawnSync([shell, "-l", "-c", "env -0"], {
+      env: process.env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = result.stdout.toString();
+    if (!output) return { ...process.env } as Record<string, string>;
+    const env: Record<string, string> = {};
+    for (const entry of output.split("\0")) {
+      const idx = entry.indexOf("=");
+      if (idx > 0) env[entry.slice(0, idx)] = entry.slice(idx + 1);
+    }
+    return env;
+  } catch {
+    return { ...process.env } as Record<string, string>;
+  }
+}
+
+const userEnv = resolveUserEnv();
+
 // Persistence
 const configDir = isWindows
   ? join(
@@ -184,12 +212,69 @@ function ensureGitRepo(folderPath: string) {
   }
 }
 
+/** If the current branch's remote tracking branch is gone, switch to the default branch and pull. */
+function ensureBranchExists(folderPath: string) {
+  const git = (args: string[]) =>
+    Bun.spawnSync(["git", ...args], {
+      cwd: folderPath,
+      env: userEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+  // Get the current branch name
+  const branchResult = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const currentBranch = branchResult.stdout.toString().trim();
+  if (!currentBranch || currentBranch === "HEAD") return;
+
+  // Check if this branch has a remote tracking ref
+  const trackingResult = git([
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+  ]);
+  if (trackingResult.exitCode !== 0) return; // no tracking branch, nothing to check
+
+  // Fetch and prune stale remote refs
+  git(["fetch", "--prune"]);
+
+  // Check again if the tracking ref still exists after prune
+  const recheckResult = git([
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+  ]);
+  if (recheckResult.exitCode === 0) return; // remote branch still exists, all good
+
+  // Remote branch is gone — find the default branch
+  const branchList = git(["branch", "--list"]);
+  const branches = branchList.stdout
+    .toString()
+    .split("\n")
+    .map((b: string) => b.replace("*", "").trim())
+    .filter(Boolean);
+  const defaultBranch =
+    branches.find((b: string) => b === "main") ||
+    branches.find((b: string) => b === "develop") ||
+    branches.find((b: string) => b === "master");
+  if (!defaultBranch) return;
+
+  git(["checkout", defaultBranch]);
+  git(["pull"]);
+  console.log(
+    `Branch "${currentBranch}" remote was deleted — switched to ${defaultBranch}`,
+  );
+}
+
 function spawnTerminal(folderPath: string, isRestore = false) {
   const id = String(nextId++);
   const sep = isWindows ? "\\" : "/";
   const name = folderPath.split(sep).pop() || folderPath;
 
   ensureGitRepo(folderPath);
+  ensureBranchExists(folderPath);
 
   const claudeBin = getClaudeBin();
   const useWorktree = !isRestore && appSettings.useWorktree;
@@ -210,10 +295,10 @@ function spawnTerminal(folderPath: string, isRestore = false) {
     rows: 30,
     cwd: folderPath,
     env: {
-      ...process.env,
+      ...userEnv,
       TERM: "xterm-256color",
-      // GUI apps on macOS don't inherit the user's shell PATH — ensure ~/.local/bin is present
-      PATH: [join(homedir(), ".local", "bin"), process.env.PATH]
+      // Ensure ~/.local/bin is on PATH even if the user's profile doesn't add it
+      PATH: [join(homedir(), ".local", "bin"), userEnv.PATH || process.env.PATH]
         .filter(Boolean)
         .join(isWindows ? ";" : ":"),
       CHAT_BROWSER_PORT: String(browserBridgePort),
@@ -447,6 +532,7 @@ const rpc = BrowserView.defineRPC<Schema>({
         const runGit = async (args: string[]) => {
           const proc = Bun.spawn(["git", ...args], {
             cwd: folder,
+            env: userEnv,
             stdout: "pipe",
             stderr: "pipe",
           });
@@ -523,6 +609,44 @@ const rpc = BrowserView.defineRPC<Schema>({
               action: "commit",
               output: r.output,
               ok: r.ok,
+            });
+            break;
+          }
+          case "git-reset": {
+            // Find the default branch (main or develop)
+            const branches = await runGit(["branch", "--list"]);
+            const branchList = branches.output
+              .split("\n")
+              .map((b) => b.replace("*", "").trim());
+            const defaultBranch =
+              branchList.find((b) => b === "main") ||
+              branchList.find((b) => b === "develop") ||
+              branchList.find((b) => b === "master");
+            if (!defaultBranch) {
+              rpc.send.actionResult({
+                id,
+                action: "reset",
+                output: "No main, develop, or master branch found",
+                ok: false,
+              });
+              break;
+            }
+            const checkout = await runGit(["checkout", defaultBranch]);
+            if (!checkout.ok) {
+              rpc.send.actionResult({
+                id,
+                action: "reset",
+                output: checkout.output,
+                ok: false,
+              });
+              break;
+            }
+            const pull = await runGit(["pull"]);
+            rpc.send.actionResult({
+              id,
+              action: "reset",
+              output: `Switched to ${defaultBranch}\n${pull.output}`,
+              ok: pull.ok,
             });
             break;
           }
