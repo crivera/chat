@@ -555,6 +555,44 @@ const rpc = BrowserView.defineRPC<Schema>({
             });
             break;
           }
+          case "git-reset": {
+            // Find the default branch (main or develop)
+            const branches = await runGit(["branch", "--list"]);
+            const branchList = branches.output
+              .split("\n")
+              .map((b) => b.replace("*", "").trim());
+            const defaultBranch =
+              branchList.find((b) => b === "main") ||
+              branchList.find((b) => b === "develop") ||
+              branchList.find((b) => b === "master");
+            if (!defaultBranch) {
+              rpc.send.actionResult({
+                id,
+                action: "reset",
+                output: "No main, develop, or master branch found",
+                ok: false,
+              });
+              break;
+            }
+            const checkout = await runGit(["checkout", defaultBranch]);
+            if (!checkout.ok) {
+              rpc.send.actionResult({
+                id,
+                action: "reset",
+                output: checkout.output,
+                ok: false,
+              });
+              break;
+            }
+            const pull = await runGit(["pull"]);
+            rpc.send.actionResult({
+              id,
+              action: "reset",
+              output: `Switched to ${defaultBranch}\n${pull.output}`,
+              ok: pull.ok,
+            });
+            break;
+          }
         }
       },
     },

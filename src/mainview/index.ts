@@ -333,6 +333,9 @@ document.getElementById("btn-git-pull")!.addEventListener("click", () => {
 document.getElementById("btn-git-commit")!.addEventListener("click", () => {
   if (activeId) rpc.send.shellAction({ id: activeId, action: "git-commit" });
 });
+document.getElementById("btn-git-reset")!.addEventListener("click", () => {
+  if (activeId) rpc.send.shellAction({ id: activeId, action: "git-reset" });
+});
 
 function createProjectListItem(id: string, name: string): HTMLDivElement {
   const item = document.createElement("div");
