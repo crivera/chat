@@ -35,6 +35,7 @@ type Schema = {
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
       closeBrowser: Record<string, never>;
+      openExternal: { url: string };
     };
   }>;
   webview: RPCSchema<{
@@ -438,6 +439,21 @@ function showBrowserOverlay(url: string) {
     <iframe src="${url}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
   `;
 
+  const iframe = browserOverlay.querySelector("iframe")!;
+  iframe.addEventListener("load", () => {
+    // If the site blocks framing (X-Frame-Options / CSP), the iframe loads
+    // but the content is blank and contentDocument is inaccessible.
+    try {
+      const doc = iframe.contentDocument;
+      // If we can access the doc and it has no body content, it was blocked
+      if (doc && doc.body && doc.body.innerHTML === "") {
+        openExternalFallback(url);
+      }
+    } catch {
+      // Cross-origin access denied — page loaded successfully in the iframe
+    }
+  });
+
   browserOverlay
     .querySelector(".browser-close-btn")!
     .addEventListener("click", () => {
@@ -450,6 +466,11 @@ function showBrowserOverlay(url: string) {
   }
 
   terminalArea.appendChild(browserOverlay);
+}
+
+function openExternalFallback(url: string) {
+  closeBrowserOverlay();
+  rpc.send.openExternal({ url });
 }
 
 function closeBrowserOverlay() {

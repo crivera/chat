@@ -163,6 +163,7 @@ type Schema = {
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
       closeBrowser: Record<string, never>;
+      openExternal: { url: string };
     };
   }>;
   webview: RPCSchema<{
@@ -523,6 +524,12 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
       closeBrowser: () => {
         // No backend action needed; frontend handles UI toggle
+      },
+      openExternal: ({ url }: { url: string }) => {
+        Bun.spawn([isWindows ? "explorer.exe" : "open", url], {
+          stdout: "ignore",
+          stderr: "ignore",
+        });
       },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
