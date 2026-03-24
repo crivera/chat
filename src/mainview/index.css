@@ -136,14 +136,16 @@ body {
   color: #6868a0;
   font-size: 14px;
   cursor: pointer;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
 
 .folder-header:hover .folder-add-thread {
-  display: flex;
+  opacity: 1;
 }
 
 .folder-add-thread:hover {
@@ -242,13 +244,15 @@ body {
   color: #585888;
   font-size: 11px;
   cursor: pointer;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
 
 .thread-item:hover .thread-close {
-  display: flex;
+  opacity: 1;
 }
 
 .thread-close:hover {

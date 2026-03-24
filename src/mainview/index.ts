@@ -131,6 +131,8 @@ interface TerminalEntry {
   threadItem: HTMLDivElement;
   idleTimer: ReturnType<typeof setTimeout> | null;
   createdAt: number;
+  inputBuffer: string;
+  titled: boolean;
 }
 
 interface FolderGroup {
@@ -274,16 +276,8 @@ function createThreadItem(id: string, createdAt: number): HTMLDivElement {
   item.className = "thread-item";
   item.dataset.id = id;
 
-  const threadNum = (() => {
-    // Count how many threads already exist for this folder
-    const entry = terminals.get(id);
-    if (!entry) return 1;
-    const group = folderGroups.get(entry.folderPath);
-    return group ? group.threadIds.length : 1;
-  })();
-
   item.innerHTML = `
-    <span class="thread-label">Thread ${threadNum}</span>
+    <span class="thread-label">New thread</span>
     <span class="thread-time">${getRelativeTime(createdAt)}</span>
     <button class="thread-close" title="Close">&#x2715;</button>
   `;
@@ -362,6 +356,31 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
 
   term.onData((data) => {
     rpc.send.terminalInput({ id, data });
+    // Capture first user message as thread title
+    const entry = terminals.get(id);
+    if (entry && !entry.titled) {
+      if (data === "\r" || data === "\n") {
+        const title = entry.inputBuffer.trim();
+        if (title.length > 0) {
+          entry.titled = true;
+          const label = entry.threadItem.querySelector(".thread-label");
+          if (label) {
+            label.textContent =
+              title.length > 40 ? title.slice(0, 40) + "\u2026" : title;
+          }
+        }
+        entry.inputBuffer = "";
+      } else if (data === "\x7f") {
+        // Backspace
+        entry.inputBuffer = entry.inputBuffer.slice(0, -1);
+      } else if (data.length === 1 && data >= " ") {
+        // Printable character
+        entry.inputBuffer += data;
+      } else if (data.length > 1 && !data.includes("\x1b")) {
+        // Pasted text (multi-char, no escape sequences)
+        entry.inputBuffer += data;
+      }
+    }
   });
 
   term.onResize(({ cols, rows }) => {
@@ -381,6 +400,8 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
     threadItem: null as unknown as HTMLDivElement, // set below
     idleTimer: null,
     createdAt,
+    inputBuffer: "",
+    titled: false,
   };
   terminals.set(id, entry);
 
