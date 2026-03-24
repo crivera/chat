@@ -74,10 +74,15 @@ body {
   padding: 0 8px;
 }
 
-.project-item {
+/* Folder groups */
+.folder-group {
+  margin-bottom: 2px;
+}
+
+.folder-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
@@ -85,22 +90,36 @@ body {
   position: relative;
 }
 
-.project-item:hover {
+.folder-header:hover {
   background: #22223a;
 }
 
-.project-item.active {
-  background: #2a2a45;
-}
-
-.project-icon {
-  font-size: 14px;
+.folder-chevron {
+  font-size: 10px;
+  color: #6868a0;
   flex-shrink: 0;
-  opacity: 0.7;
+  transition: transform 0.15s;
+  width: 12px;
+  text-align: center;
 }
 
-.project-name {
+.folder-group.collapsed .folder-chevron {
+  transform: rotate(0deg);
+}
+
+.folder-group:not(.collapsed) .folder-chevron {
+  transform: rotate(90deg);
+}
+
+.folder-icon {
   font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.folder-name {
+  font-size: 13px;
+  font-weight: 500;
   color: #d5d5e8;
   white-space: nowrap;
   overflow: hidden;
@@ -108,15 +127,83 @@ body {
   flex: 1;
 }
 
-.project-item.active .project-name {
-  color: #eeeef8;
+.folder-add-thread {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #6868a0;
+  font-size: 14px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.project-item.working .project-name::after {
+.folder-header:hover .folder-add-thread {
+  display: flex;
+}
+
+.folder-add-thread:hover {
+  background: #3a3a55;
+  color: #aaaacc;
+}
+
+.folder-threads {
+  overflow: hidden;
+}
+
+.folder-group.collapsed .folder-threads {
+  display: none;
+}
+
+/* Thread items */
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.thread-item:hover {
+  background: #22223a;
+}
+
+.thread-item.active {
+  background: #2a2a45;
+}
+
+.thread-label {
+  font-size: 12px;
+  color: #9898bb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.thread-item.active .thread-label {
+  color: #d5d5e8;
+}
+
+.thread-time {
+  font-size: 10px;
+  color: #5858880;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.thread-item.working .thread-label::after {
   content: "";
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #6ee7a0;
   margin-left: 6px;
@@ -134,17 +221,17 @@ body {
   }
 }
 
-.project-item.done .project-name::after {
+.thread-item.done .thread-label::after {
   content: "\2713";
   display: inline-block;
   margin-left: 6px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #6ee7a0;
   vertical-align: middle;
 }
 
-.project-close {
+.thread-close {
   position: absolute;
   right: 6px;
   width: 18px;
@@ -152,19 +239,19 @@ body {
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: #5858880;
-  font-size: 12px;
+  color: #585888;
+  font-size: 11px;
   cursor: pointer;
   display: none;
   align-items: center;
   justify-content: center;
 }
 
-.project-item:hover .project-close {
+.thread-item:hover .thread-close {
   display: flex;
 }
 
-.project-close:hover {
+.thread-close:hover {
   background: #3a3a55;
   color: #aaaacc;
 }
@@ -383,7 +470,9 @@ body {
   bottom: 3px;
   background: #8888bb;
   border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
+  transition:
+    transform 0.2s,
+    background 0.2s;
 }
 
 .settings-toggle input:checked + .settings-toggle-slider {

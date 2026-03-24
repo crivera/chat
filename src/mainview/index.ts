@@ -128,13 +128,32 @@ interface TerminalEntry {
   terminal: Terminal;
   fitAddon: FitAddon;
   container: HTMLDivElement;
-  listItem: HTMLDivElement;
+  threadItem: HTMLDivElement;
   idleTimer: ReturnType<typeof setTimeout> | null;
+  createdAt: number;
+}
+
+interface FolderGroup {
+  folderPath: string;
+  name: string;
+  element: HTMLDivElement;
+  threadList: HTMLDivElement;
+  collapsed: boolean;
+  threadIds: string[];
 }
 
 const terminals = new Map<string, TerminalEntry>();
+const folderGroups = new Map<string, FolderGroup>();
 let activeId: string | null = null;
 let browserOverlay: HTMLDivElement | null = null;
+
+function getRelativeTime(timestamp: number): string {
+  const diff = Math.floor((Date.now() - timestamp) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 const projectList = document.getElementById("project-list")!;
 const terminalArea = document.getElementById("terminal-area")!;
@@ -199,6 +218,90 @@ document.getElementById("settings-close-all")!.addEventListener("click", () => {
     hideSettings();
   }
 });
+
+function ensureFolderGroup(folderPath: string, name: string): FolderGroup {
+  let group = folderGroups.get(folderPath);
+  if (group) return group;
+
+  const element = document.createElement("div");
+  element.className = "folder-group";
+  element.dataset.folderPath = folderPath;
+
+  const header = document.createElement("div");
+  header.className = "folder-header";
+  header.innerHTML = `
+    <span class="folder-chevron">&#x276F;</span>
+    <span class="folder-icon">&#x1F4C1;</span>
+    <span class="folder-name">${name}</span>
+    <button class="folder-add-thread" title="New thread">+</button>
+  `;
+
+  const threadList = document.createElement("div");
+  threadList.className = "folder-threads";
+
+  element.appendChild(header);
+  element.appendChild(threadList);
+  projectList.appendChild(element);
+
+  group = {
+    folderPath,
+    name,
+    element,
+    threadList,
+    collapsed: false,
+    threadIds: [],
+  };
+
+  // Toggle collapse on header click
+  header.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest(".folder-add-thread")) return;
+    group!.collapsed = !group!.collapsed;
+    element.classList.toggle("collapsed", group!.collapsed);
+  });
+
+  // Add thread button
+  header.querySelector(".folder-add-thread")!.addEventListener("click", (e) => {
+    e.stopPropagation();
+    rpc.send.openTerminal({ folderPath });
+  });
+
+  folderGroups.set(folderPath, group);
+  return group;
+}
+
+function createThreadItem(id: string, createdAt: number): HTMLDivElement {
+  const item = document.createElement("div");
+  item.className = "thread-item";
+  item.dataset.id = id;
+
+  const threadNum = (() => {
+    // Count how many threads already exist for this folder
+    const entry = terminals.get(id);
+    if (!entry) return 1;
+    const group = folderGroups.get(entry.folderPath);
+    return group ? group.threadIds.length : 1;
+  })();
+
+  item.innerHTML = `
+    <span class="thread-label">Thread ${threadNum}</span>
+    <span class="thread-time">${getRelativeTime(createdAt)}</span>
+    <button class="thread-close" title="Close">&#x2715;</button>
+  `;
+
+  item.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest(".thread-close")) {
+      selectProject(id);
+    }
+  });
+
+  item.querySelector(".thread-close")!.addEventListener("click", (e) => {
+    e.stopPropagation();
+    rpc.send.closeTerminal({ id });
+    removeProject(id);
+  });
+
+  return item;
+}
 
 function setupTerminalUI(id: string, name: string, folderPath: string) {
   const term = new Terminal({
@@ -265,9 +368,9 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
     rpc.send.terminalResize({ id, cols, rows });
   });
 
-  const listItem = createProjectListItem(id, name);
-  projectList.appendChild(listItem);
+  const createdAt = Date.now();
 
+  // Create entry first so createThreadItem can access it
   const entry: TerminalEntry = {
     id,
     name,
@@ -275,11 +378,26 @@ function setupTerminalUI(id: string, name: string, folderPath: string) {
     terminal: term,
     fitAddon,
     container,
-    listItem,
+    threadItem: null as unknown as HTMLDivElement, // set below
     idleTimer: null,
+    createdAt,
   };
-
   terminals.set(id, entry);
+
+  // Ensure folder group exists and add thread
+  const group = ensureFolderGroup(folderPath, name);
+  group.threadIds.push(id);
+
+  const threadItem = createThreadItem(id, createdAt);
+  entry.threadItem = threadItem;
+  group.threadList.appendChild(threadItem);
+
+  // Expand the folder if collapsed
+  if (group.collapsed) {
+    group.collapsed = false;
+    group.element.classList.remove("collapsed");
+  }
+
   selectProject(id);
 }
 
@@ -287,12 +405,12 @@ function markActive(id: string) {
   const entry = terminals.get(id);
   if (!entry) return;
   if (id === activeId) return;
-  entry.listItem.classList.remove("done");
-  entry.listItem.classList.add("working");
+  entry.threadItem.classList.remove("done");
+  entry.threadItem.classList.add("working");
   if (entry.idleTimer) clearTimeout(entry.idleTimer);
   entry.idleTimer = setTimeout(() => {
-    entry.listItem.classList.remove("working");
-    entry.listItem.classList.add("done");
+    entry.threadItem.classList.remove("working");
+    entry.threadItem.classList.add("done");
     entry.idleTimer = null;
   }, 2000);
 }
@@ -338,31 +456,6 @@ document.getElementById("btn-git-reset")!.addEventListener("click", () => {
   if (activeId) rpc.send.shellAction({ id: activeId, action: "git-reset" });
 });
 
-function createProjectListItem(id: string, name: string): HTMLDivElement {
-  const item = document.createElement("div");
-  item.className = "project-item";
-  item.dataset.id = id;
-
-  item.innerHTML = `
-    <span class="project-icon">&#x1F4C1;</span>
-    <span class="project-name">${name}</span>
-    <button class="project-close" title="Close">&#x2715;</button>
-  `;
-
-  item.addEventListener("click", (e) => {
-    if (!(e.target as HTMLElement).closest(".project-close")) {
-      selectProject(id);
-    }
-  });
-
-  item.querySelector(".project-close")!.addEventListener("click", () => {
-    rpc.send.closeTerminal({ id });
-    removeProject(id);
-  });
-
-  return item;
-}
-
 function selectProject(id: string) {
   if (browserOverlay) closeBrowserOverlay();
 
@@ -371,9 +464,9 @@ function selectProject(id: string) {
   for (const [entryId, entry] of terminals) {
     const isActive = entryId === id;
     entry.container.classList.toggle("active", isActive);
-    entry.listItem.classList.toggle("active", isActive);
+    entry.threadItem.classList.toggle("active", isActive);
     if (isActive) {
-      entry.listItem.classList.remove("done", "working");
+      entry.threadItem.classList.remove("done", "working");
       if (entry.idleTimer) {
         clearTimeout(entry.idleTimer);
         entry.idleTimer = null;
@@ -397,8 +490,19 @@ function removeProject(id: string) {
 
   entry.terminal.dispose();
   entry.container.remove();
-  entry.listItem.remove();
+  entry.threadItem.remove();
   terminals.delete(id);
+
+  // Remove from folder group
+  const group = folderGroups.get(entry.folderPath);
+  if (group) {
+    group.threadIds = group.threadIds.filter((tid) => tid !== id);
+    // Remove the folder group if no threads remain
+    if (group.threadIds.length === 0) {
+      group.element.remove();
+      folderGroups.delete(entry.folderPath);
+    }
+  }
 
   if (activeId === id) {
     activeId = null;
