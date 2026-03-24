@@ -20,7 +20,7 @@ const config = {
     },
     views: {
       mainview: {
-        entrypoint: "src/mainview/index.ts",
+        entrypoint: "src/mainview/index.tsx",
       },
     },
     copy: {

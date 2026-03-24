@@ -194,22 +194,17 @@ body {
   color: #d5d5e8;
 }
 
-.thread-time {
-  font-size: 10px;
-  color: #5858880;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
 
-.thread-item.working .thread-label::after {
+.thread-item.working .thread-label::before {
   content: "";
   display: inline-block;
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: #6ee7a0;
-  margin-left: 6px;
+  margin-right: 6px;
   vertical-align: middle;
+  flex-shrink: 0;
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -223,14 +218,15 @@ body {
   }
 }
 
-.thread-item.done .thread-label::after {
+.thread-item.done .thread-label::before {
   content: "\2713";
   display: inline-block;
-  margin-left: 6px;
+  margin-right: 6px;
   font-size: 10px;
   font-weight: 700;
   color: #6ee7a0;
   vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .thread-close {

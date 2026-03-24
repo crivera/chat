@@ -2,13 +2,15 @@
   "name": "chat",
   "version": "0.0.5",
   "dependencies": {
+    "@preact/signals": "^2.8.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "bun-pty": "^0.4.8",
-    "electrobun": "latest"
+    "electrobun": "latest",
+    "preact": "^10.29.0"
   },
   "scripts": {
     "dev": "electrobun dev --watch",
@@ -22,9 +24,9 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.57.1",
-    "@typescript-eslint/parser": "^8.57.1",
-    "eslint": "^10.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "husky": "^9.1.7",
@@ -33,7 +35,7 @@
     "rcedit": "^5.0.2"
   },
   "lint-staged": {
-    "*.ts": [
+    "*.{ts,tsx}": [
       "eslint --fix",
       "prettier --write"
     ]

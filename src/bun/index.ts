@@ -152,6 +152,10 @@ type Schema = {
         params: AppSettings;
         response: void;
       };
+      checkFrameable: {
+        params: { url: string };
+        response: boolean;
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;
@@ -463,6 +467,25 @@ const rpc = BrowserView.defineRPC<Schema>({
       setSettings: (settings: AppSettings) => {
         appSettings = { ...appSettings, ...settings };
         saveSettings(appSettings);
+      },
+      checkFrameable: async ({ url }: { url: string }) => {
+        try {
+          const res = await fetch(url, {
+            method: "HEAD",
+            signal: AbortSignal.timeout(3000),
+            redirect: "follow",
+          });
+          const xfo = res.headers.get("x-frame-options")?.toLowerCase();
+          if (xfo === "deny" || xfo === "sameorigin") return false;
+          const csp = res.headers.get("content-security-policy");
+          if (csp) {
+            const match = csp.match(/frame-ancestors\s+([^;]+)/i);
+            if (match && !match[1].includes("*")) return false;
+          }
+          return true;
+        } catch {
+          return false;
+        }
       },
     },
     messages: {

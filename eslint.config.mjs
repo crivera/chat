@@ -5,12 +5,13 @@ import prettierConfig from "eslint-config-prettier";
 
 export default [
   {
-    files: ["src/**/*.ts"],
+    files: ["src/**/*.ts", "src/**/*.tsx"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        ecmaFeatures: { jsx: true },
       },
     },
     plugins: {
