@@ -14,6 +14,14 @@ export interface ThreadData {
   inputBuffer: string;
 }
 
+export interface DetectedPrompt {
+  id: string;
+  threadTitle: string;
+  folderName: string;
+  question: string;
+  options: { label: string; keystroke: string }[];
+}
+
 export interface TerminalInstance {
   terminal: Terminal;
   fitAddon: FitAddon;
@@ -30,6 +38,8 @@ export interface FolderGroupData {
 
 export const terminalInstances = new Map<string, TerminalInstance>();
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const promptCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const promptCooldowns = new Map<string, number>();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let rpc: any;
@@ -45,6 +55,7 @@ export const activeId = signal<string | null>(null);
 export const settingsOpen = signal(false);
 export const browserUrl = signal<string | null>(null);
 export const collapsedFolders = signal<Set<string>>(new Set());
+export const activePrompts = signal<Map<string, DetectedPrompt>>(new Map());
 
 // --- Computed ---
 
@@ -73,22 +84,33 @@ function updateThread(id: string, updates: Partial<ThreadData>) {
 
 // --- Thread actions ---
 
-export function addThread(id: string, name: string, folderPath: string) {
+export function addThread(
+  id: string,
+  name: string,
+  folderPath: string,
+  title?: string,
+  isLast?: boolean,
+) {
   const map = new Map(threads.value);
   map.set(id, {
     id,
     name,
     folderPath,
-    title: "New thread",
-    titled: false,
+    title: title || "New thread",
+    titled: !!title,
     status: "idle",
     inputBuffer: "",
   });
   threads.value = map;
 
-  // Auto-expand folder
   const collapsed = new Set(collapsedFolders.value);
-  collapsed.delete(folderPath);
+  if (isLast === false) {
+    // Restored non-active thread: start collapsed
+    collapsed.add(folderPath);
+  } else {
+    // New thread or last-active restored thread: expand
+    collapsed.delete(folderPath);
+  }
   collapsedFolders.value = collapsed;
 }
 
@@ -109,6 +131,14 @@ export function removeThread(id: string) {
     clearTimeout(timer);
     idleTimers.delete(id);
   }
+
+  const checkTimer = promptCheckTimers.get(id);
+  if (checkTimer) {
+    clearTimeout(checkTimer);
+    promptCheckTimers.delete(id);
+  }
+  promptCooldowns.delete(id);
+  dismissPrompt(id);
 
   if (activeId.value === id) {
     if (browserUrl.value) closeBrowser();
@@ -141,8 +171,10 @@ export function markActive(id: string) {
 
 export function selectThread(id: string) {
   if (browserUrl.value) closeBrowser();
+  dismissPrompt(id);
 
   activeId.value = id;
+  rpc.send.setActiveThread({ id });
 
   const timer = idleTimers.get(id);
   if (timer) {
@@ -171,11 +203,14 @@ export function handleTerminalInput(id: string, data: string) {
   if (data === "\r" || data === "\n") {
     const title = thread.inputBuffer.trim();
     if (title.length > 0) {
+      const displayTitle =
+        title.length > 40 ? title.slice(0, 40) + "\u2026" : title;
       updateThread(id, {
         titled: true,
-        title: title.length > 40 ? title.slice(0, 40) + "\u2026" : title,
+        title: displayTitle,
         inputBuffer: "",
       });
+      rpc.send.setThreadTitle({ id, title: displayTitle });
     } else {
       updateThread(id, { inputBuffer: "" });
     }
@@ -282,6 +317,212 @@ export function refitActiveTerminal() {
   if (activeId.value) {
     const instance = terminalInstances.get(activeId.value);
     if (instance) instance.fitAddon.fit();
+  }
+}
+
+// --- Prompt detection ---
+
+export function schedulePromptCheck(id: string) {
+  const existing = promptCheckTimers.get(id);
+  if (existing) clearTimeout(existing);
+
+  promptCheckTimers.set(
+    id,
+    setTimeout(() => {
+      promptCheckTimers.delete(id);
+      const cooldown = promptCooldowns.get(id);
+      if (cooldown && Date.now() < cooldown) return;
+      runPromptCheck(id);
+    }, 300),
+  );
+}
+
+function runPromptCheck(id: string) {
+  const thread = threads.value.get(id);
+  if (!thread) return;
+
+  // Only show popups for background terminals
+  if (id === activeId.value) {
+    // Dismiss if it was previously showing (user switched to this terminal)
+    if (activePrompts.value.has(id)) dismissPrompt(id);
+    return;
+  }
+
+  const instance = terminalInstances.get(id);
+  if (!instance) return;
+
+  const buffer = instance.terminal.buffer.active;
+  const lines: string[] = [];
+  const cursorRow = buffer.baseY + buffer.cursorY;
+  const startRow = Math.max(0, cursorRow - 24);
+
+  for (let i = startRow; i <= cursorRow; i++) {
+    const line = buffer.getLine(i);
+    if (line) lines.push(line.translateToString(true));
+  }
+
+  const detected = detectPromptPattern(lines);
+  const map = new Map(activePrompts.value);
+
+  if (detected) {
+    map.set(id, {
+      id,
+      threadTitle: thread.title,
+      folderName: thread.name,
+      question: detected.question,
+      options: detected.options,
+    });
+  } else {
+    if (!map.has(id)) return;
+    map.delete(id);
+  }
+
+  activePrompts.value = map;
+}
+
+function detectPromptPattern(lines: string[]): {
+  question: string;
+  options: { label: string; keystroke: string }[];
+} | null {
+  const recentText = lines.join("\n");
+
+  // --- Pattern: Numbered selection list ---
+  // "Enter to select · ↑/↓ to navigate · Esc to cancel"
+  if (/Enter to select/.test(recentText)) {
+    const numbered: { num: number; label: string }[] = [];
+    for (const line of lines) {
+      const m = line.match(/^\s*(?:[❯›>]\s+)?(\d+)\.\s+(.+)$/);
+      if (m) numbered.push({ num: parseInt(m[1]), label: m[2].trim() });
+    }
+
+    if (numbered.length > 0) {
+      const DOWN = "\x1b[B";
+
+      // Cursor starts at item 1; send (num-1) downs then Enter
+      // Options requiring text input navigate to the terminal instead
+      const textInputLabels = /^(type something|chat about this)\.?$/i;
+      const options = numbered.map((opt) => ({
+        label: opt.label,
+        keystroke: textInputLabels.test(opt.label)
+          ? "goto:" + DOWN.repeat(opt.num - 1) + "\r"
+          : DOWN.repeat(opt.num - 1) + "\r",
+      }));
+      options.push({ label: "Cancel", keystroke: "\x1b" });
+
+      let question = "Select an option";
+      for (const line of lines) {
+        const t = line.trim();
+        if (t.endsWith("?") && t.length > 10 && !/^\d+\./.test(t)) {
+          question = t;
+          break;
+        }
+      }
+
+      return { question, options };
+    }
+  }
+
+  // --- Pattern: Yes/No permission prompts ---
+  const recentLines = lines.slice(-10);
+  const recentBottom = recentLines.join("\n");
+
+  const hasOptionLine = recentLines.some((line) => {
+    const t = line.trim();
+    return /\bYes\b/.test(t) && /\bNo\b/.test(t);
+  });
+
+  const hasBracketYN = /[\[(][Yy]\/[Nn](?:\/[Aa])?[\])]/.test(recentBottom);
+
+  if (!hasOptionLine && !hasBracketYN) return null;
+
+  const hasAlways = /\bAlways\b/i.test(recentBottom);
+
+  const options: { label: string; keystroke: string }[] = [
+    { label: "Yes", keystroke: "y" },
+    { label: "No", keystroke: "n" },
+  ];
+  if (hasAlways) {
+    options.push({ label: "Always", keystroke: "a" });
+  }
+
+  // Try to extract the question — "Allow <tool> <path>?"
+  const allowMatch = recentBottom.match(
+    /(?:⎿\s*)?(?:Allow|Approve)\s+(.+?)(?:\?|$)/m,
+  );
+  if (allowMatch) {
+    const q = allowMatch[1].trim().replace(/\?$/, "");
+    return { question: `Allow ${q}?`, options };
+  }
+
+  // Line ending with "?"
+  for (
+    let i = recentLines.length - 1;
+    i >= Math.max(0, recentLines.length - 6);
+    i--
+  ) {
+    const line = recentLines[i].trim();
+    if (line.endsWith("?") && line.length > 3) {
+      return { question: line, options };
+    }
+  }
+
+  // Bracket pattern: "something [Y/n]"
+  if (hasBracketYN) {
+    const match = recentBottom.match(
+      /(.{3,80}?)\s*[\[(][Yy]\/[Nn](?:\/[Aa])?[\])]/,
+    );
+    if (match) {
+      return { question: match[1].trim(), options };
+    }
+  }
+
+  return { question: "Action required", options };
+}
+
+export function respondToPrompt(id: string, keystroke: string) {
+  dismissPrompt(id);
+  promptCooldowns.set(id, Date.now() + 2000);
+
+  // Options prefixed with "goto:" select the option then switch to terminal
+  const isGoto = keystroke.startsWith("goto:");
+  if (isGoto) keystroke = keystroke.slice(5);
+
+  // Split into individual escape sequences/characters and stagger sends
+  // so ink processes each keypress separately
+  const parts: string[] = [];
+  let i = 0;
+  while (i < keystroke.length) {
+    if (keystroke[i] === "\x1b" && i + 2 < keystroke.length) {
+      parts.push(keystroke.slice(i, i + 3));
+      i += 3;
+    } else {
+      parts.push(keystroke[i]);
+      i++;
+    }
+  }
+
+  parts.forEach((part, idx) => {
+    if (idx === 0) sendTerminalInput(id, part);
+    else setTimeout(() => sendTerminalInput(id, part), idx * 30);
+  });
+
+  if (isGoto) {
+    // Switch to terminal after keystrokes are sent
+    setTimeout(() => selectThread(id), parts.length * 30 + 50);
+  }
+}
+
+export function dismissPrompt(id: string) {
+  const map = new Map(activePrompts.value);
+  if (!map.has(id)) return;
+  map.delete(id);
+  activePrompts.value = map;
+}
+
+export function dismissPromptOnInput(id: string) {
+  if (activePrompts.value.has(id)) {
+    dismissPrompt(id);
+    promptCooldowns.set(id, Date.now() + 2000);
   }
 }
 

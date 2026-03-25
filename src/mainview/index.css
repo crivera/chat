@@ -194,7 +194,6 @@ body {
   color: #d5d5e8;
 }
 
-
 .thread-item.working .thread-label::before {
   content: "";
   display: inline-block;
@@ -708,6 +707,180 @@ body {
   border: none;
   width: 100%;
   background: white;
+}
+
+/* Prompt popup */
+.prompt-popup-stack {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.prompt-popup {
+  pointer-events: auto;
+  background: #1e1e35;
+  border: 1px solid #3a3a60;
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 280px;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: prompt-slide-in 0.2s ease-out;
+}
+
+@keyframes prompt-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.prompt-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.prompt-popup-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prompt-popup-folder {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7c7cf0;
+  background: #2a2a50;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.prompt-popup-thread {
+  font-size: 12px;
+  color: #b0b0cc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}
+
+.prompt-popup-question {
+  font-size: 12px;
+  color: #d5d5e8;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  word-break: break-word;
+  font-family: "SF Mono", "Menlo", monospace;
+}
+
+.prompt-popup-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.prompt-popup-actions-list {
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.prompt-popup-actions-list .prompt-popup-btn {
+  text-align: left;
+  flex: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prompt-popup-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid #3a3a60;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.prompt-popup-btn-yes {
+  background: #2a4a3a;
+  color: #6ee7a0;
+  border-color: #3a5a4a;
+}
+
+.prompt-popup-btn-yes:hover {
+  background: #3a5a4a;
+}
+
+.prompt-popup-btn-no {
+  background: #3a2a2a;
+  color: #f08080;
+  border-color: #5a3a3a;
+}
+
+.prompt-popup-btn-no:hover {
+  background: #4a3a3a;
+}
+
+.prompt-popup-btn-always {
+  background: #2a2a50;
+  color: #a0a0f0;
+  border-color: #3a3a60;
+}
+
+.prompt-popup-btn-always:hover {
+  background: #3a3a60;
+}
+
+.prompt-popup-btn-option {
+  background: #22223a;
+  color: #d0d0e8;
+  border-color: #3a3a55;
+}
+
+.prompt-popup-btn-option:hover {
+  background: #33334a;
+}
+
+.prompt-popup-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #2a2a45;
+}
+
+.prompt-popup-goto {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+  color: #7c7cf0;
+  transition: color 0.15s;
+}
+
+.prompt-popup-goto:hover {
+  color: #a0a0ff;
 }
 
 /* Toast notifications */

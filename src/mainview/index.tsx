@@ -19,6 +19,8 @@ import {
   showBrowser,
   showToast,
   refitAllTerminals,
+  schedulePromptCheck,
+  dismissPromptOnInput,
 } from "./state";
 import { App } from "./components/App";
 
@@ -51,6 +53,8 @@ type Schema = {
       terminalInput: { id: string; data: string };
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
+      setThreadTitle: { id: string; title: string };
+      setActiveThread: { id: string };
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
     };
@@ -63,7 +67,13 @@ type Schema = {
       };
     };
     messages: {
-      terminalReady: { id: string; name: string; folderPath: string };
+      terminalReady: {
+        id: string;
+        name: string;
+        folderPath: string;
+        title?: string;
+        isLast?: boolean;
+      };
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
       actionResult: {
@@ -92,18 +102,23 @@ const rpc = Electroview.defineRPC<Schema>({
         id,
         name,
         folderPath,
+        title,
+        isLast,
       }: {
         id: string;
         name: string;
         folderPath: string;
+        title?: string;
+        isLast?: boolean;
       }) => {
-        setupTerminal(id, name, folderPath);
+        setupTerminal(id, name, folderPath, title, isLast);
       },
       terminalOutput: ({ id, data }: { id: string; data: string }) => {
         const instance = terminalInstances.get(id);
         if (instance) {
           instance.terminal.write(data);
           markActive(id);
+          schedulePromptCheck(id);
         }
       },
       terminalExit: ({ id }: { id: string }) => {
@@ -137,7 +152,13 @@ const rpc = Electroview.defineRPC<Schema>({
 new Electroview({ rpc });
 initRpc(rpc);
 
-function setupTerminal(id: string, name: string, folderPath: string) {
+function setupTerminal(
+  id: string,
+  name: string,
+  folderPath: string,
+  title?: string,
+  isLast?: boolean,
+) {
   const term = new Terminal({
     cursorBlink: true,
     fontSize: 13,
@@ -194,14 +215,17 @@ function setupTerminal(id: string, name: string, folderPath: string) {
   term.onData((data) => {
     sendTerminalInput(id, data);
     handleTerminalInput(id, data);
+    dismissPromptOnInput(id);
   });
 
   term.onResize(({ cols, rows }) => {
     sendTerminalResize(id, cols, rows);
   });
 
-  addThread(id, name, folderPath);
-  selectThread(id);
+  addThread(id, name, folderPath, title, isLast);
+  // For restored threads, only select the last-active one.
+  // For new threads (isLast is undefined), always select.
+  if (isLast !== false) selectThread(id);
 
   requestAnimationFrame(() => {
     fitAddon.fit();

@@ -90,6 +90,8 @@ let appSettings = loadSettings();
 interface SavedProject {
   folderPath: string;
   hasWorktree: boolean;
+  title?: string;
+  active?: boolean;
 }
 
 function loadSavedProjects(): SavedProject[] {
@@ -166,6 +168,8 @@ type Schema = {
       terminalInput: { id: string; data: string };
       terminalResize: { id: string; cols: number; rows: number };
       shellAction: { id: string; action: string };
+      setThreadTitle: { id: string; title: string };
+      setActiveThread: { id: string };
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
     };
@@ -178,7 +182,13 @@ type Schema = {
       };
     };
     messages: {
-      terminalReady: { id: string; name: string; folderPath: string };
+      terminalReady: {
+        id: string;
+        name: string;
+        folderPath: string;
+        title?: string;
+        isLast?: boolean;
+      };
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
       actionResult: { id: string; action: string; output: string; ok: boolean };
@@ -194,11 +204,13 @@ interface TerminalProcess {
   name: string;
   folderPath: string;
   hasWorktree: boolean;
+  title?: string;
   pty: ReturnType<typeof ptySpawn>;
 }
 
 const terminals = new Map<string, TerminalProcess>();
 let nextId = 1;
+let activeTerminalId: string | null = null;
 
 function getClaudeBin(): string {
   return isWindows
@@ -273,7 +285,12 @@ function ensureBranchExists(folderPath: string) {
   );
 }
 
-function spawnTerminal(folderPath: string, isRestore = false) {
+function spawnTerminal(
+  folderPath: string,
+  isRestore = false,
+  title?: string,
+  isLast?: boolean,
+) {
   const id = String(nextId++);
   const sep = isWindows ? "\\" : "/";
   const name = folderPath.split(sep).pop() || folderPath;
@@ -312,9 +329,9 @@ function spawnTerminal(folderPath: string, isRestore = false) {
     },
   });
 
-  terminals.set(id, { id, name, folderPath, hasWorktree: true, pty });
+  terminals.set(id, { id, name, folderPath, hasWorktree: true, title, pty });
 
-  rpc.send.terminalReady({ id, name, folderPath });
+  rpc.send.terminalReady({ id, name, folderPath, title, isLast });
 
   pty.onData((data: string) => {
     rpc.send.terminalOutput({ id, data });
@@ -405,6 +422,8 @@ function persistCurrentProjects() {
   const projects = [...terminals.values()].map((t) => ({
     folderPath: t.folderPath,
     hasWorktree: t.hasWorktree,
+    title: t.title,
+    active: t.id === activeTerminalId || undefined,
   }));
   saveProjects(projects);
 }
@@ -504,17 +523,15 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
       openTerminal: async ({ folderPath }: { folderPath: string }) => {
         try {
+          await ensureClaudeSettings(folderPath);
+        } catch (err) {
+          console.error("Failed to ensure Claude settings:", err);
+        }
+        try {
           spawnTerminal(folderPath);
           persistCurrentProjects();
         } catch (err) {
           console.error("Failed to open terminal:", err);
-          return;
-        }
-        // Run settings check separately so it doesn't crash the terminal spawn
-        try {
-          await ensureClaudeSettings(folderPath);
-        } catch (err) {
-          console.error("Failed to ensure Claude settings:", err);
         }
       },
       closeTerminal: ({ id }: { id: string }) => {
@@ -530,6 +547,17 @@ const rpc = BrowserView.defineRPC<Schema>({
         if (terminal) {
           terminal.pty.write(data);
         }
+      },
+      setThreadTitle: ({ id, title }: { id: string; title: string }) => {
+        const terminal = terminals.get(id);
+        if (terminal) {
+          terminal.title = title;
+          persistCurrentProjects();
+        }
+      },
+      setActiveThread: ({ id }: { id: string }) => {
+        activeTerminalId = id;
+        persistCurrentProjects();
       },
       terminalResize: ({
         id,
@@ -775,8 +803,21 @@ win.webview.on("dom-ready", () => {
       for (const project of saved) {
         if (existsSync(project.folderPath)) {
           try {
-            spawnTerminal(project.folderPath, project.hasWorktree);
             await ensureClaudeSettings(project.folderPath);
+          } catch (err) {
+            console.error(
+              "Failed to ensure Claude settings:",
+              project.folderPath,
+              err,
+            );
+          }
+          try {
+            spawnTerminal(
+              project.folderPath,
+              project.hasWorktree,
+              project.title,
+              !!project.active,
+            );
           } catch (err) {
             console.error(
               "Failed to restore project:",

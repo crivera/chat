@@ -11,6 +11,7 @@ import {
 } from "../state";
 import { Sidebar } from "./Sidebar";
 import { Settings } from "./Settings";
+import { PromptPopup } from "./PromptPopup";
 
 export function App() {
   const hasTerminals = threads.value.size > 0;
@@ -52,6 +53,7 @@ export function App() {
         </div>
       </div>
       <Settings />
+      <PromptPopup />
     </>
   );
 }
