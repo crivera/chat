@@ -194,6 +194,31 @@ body {
   color: #d5d5e8;
 }
 
+.thread-item.has-prompt {
+  background: rgba(240, 160, 64, 0.06);
+}
+
+.thread-item.has-prompt .thread-label {
+  color: #f0a050;
+}
+
+.thread-item.has-prompt::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f0a050;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.thread-item.has-prompt:hover::after {
+  right: 28px;
+}
+
 .thread-item.working .thread-label::before {
   content: "";
   display: inline-block;

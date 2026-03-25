@@ -82,6 +82,31 @@ function updateThread(id: string, updates: Partial<ThreadData>) {
   threads.value = map;
 }
 
+// --- Thread navigation ---
+
+export function getAllThreadsOrdered(): ThreadData[] {
+  const result: ThreadData[] = [];
+  for (const group of folderGroups.value) {
+    result.push(...group.threads);
+  }
+  return result;
+}
+
+export function cycleThread(direction: 1 | -1) {
+  const all = getAllThreadsOrdered();
+  if (all.length <= 1) return;
+  const currentIdx = all.findIndex((t) => t.id === activeId.value);
+  const nextIdx = (currentIdx + direction + all.length) % all.length;
+  selectThread(all[nextIdx].id);
+}
+
+export function selectThreadByIndex(index: number) {
+  const all = getAllThreadsOrdered();
+  if (index < all.length) {
+    selectThread(all[index].id);
+  }
+}
+
 // --- Thread actions ---
 
 export function addThread(
@@ -365,6 +390,7 @@ function runPromptCheck(id: string) {
   const map = new Map(activePrompts.value);
 
   if (detected) {
+    const isNew = !activePrompts.value.has(id);
     map.set(id, {
       id,
       threadTitle: thread.title,
@@ -372,6 +398,12 @@ function runPromptCheck(id: string) {
       question: detected.question,
       options: detected.options,
     });
+    if (isNew && !document.hasFocus()) {
+      rpc.send.requestAttention({
+        title: `Chat — ${thread.name}`,
+        body: detected.question,
+      });
+    }
   } else {
     if (!map.has(id)) return;
     map.delete(id);

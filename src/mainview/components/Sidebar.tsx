@@ -3,6 +3,7 @@ import { useEffect, useRef } from "preact/hooks";
 import {
   folderGroups,
   activeId,
+  activePrompts,
   collapsedFolders,
   toggleFolderCollapsed,
   selectThread,
@@ -100,9 +101,11 @@ function FolderGroup({
 
 function ThreadItem({ thread }: { thread: ThreadData }) {
   const isActive = activeId.value === thread.id;
+  const hasPrompt = activePrompts.value.has(thread.id);
   const cls = [
     "thread-item",
     isActive && "active",
+    hasPrompt && "has-prompt",
     thread.status === "working" && "working",
     thread.status === "done" && "done",
   ]

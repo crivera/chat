@@ -6,10 +6,14 @@ import {
   browserUrl,
   openFolderDialog,
   openNewTerminal,
+  closeTerminal,
   closeBrowser,
   openExternal,
   shellAction,
+  settingsOpen,
   refitActiveTerminal,
+  cycleThread,
+  selectThreadByIndex,
 } from "../state";
 import { Sidebar } from "./Sidebar";
 import { Settings } from "./Settings";
@@ -35,6 +39,26 @@ export function App() {
         const active = activeId.value;
         const thread = active ? threads.value.get(active) : undefined;
         if (thread) openNewTerminal(thread.folderPath);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "w") {
+        e.preventDefault();
+        if (activeId.value) closeTerminal(activeId.value);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "]") {
+        e.preventDefault();
+        cycleThread(1);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "[") {
+        e.preventDefault();
+        cycleThread(-1);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        settingsOpen.value = true;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") {
+        e.preventDefault();
+        selectThreadByIndex(parseInt(e.key) - 1);
       }
       if (e.key === "Escape" && browserUrl.value) {
         closeBrowser();

@@ -172,6 +172,7 @@ type Schema = {
       setActiveThread: { id: string };
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
+      requestAttention: { title: string; body: string };
     };
   }>;
   webview: RPCSchema<{
@@ -583,6 +584,17 @@ const rpc = BrowserView.defineRPC<Schema>({
           stderr: "ignore",
         });
       },
+      requestAttention: ({ title, body }: { title: string; body: string }) => {
+        if (!isWindows) {
+          const script = `on run argv
+            display notification (item 2 of argv) with title (item 1 of argv)
+          end run`;
+          Bun.spawn(["osascript", "-e", script, "--", title, body], {
+            stdout: "ignore",
+            stderr: "ignore",
+          });
+        }
+      },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
         if (!terminal) return;
@@ -748,7 +760,7 @@ ApplicationMenu.setApplicationMenu([
   },
   {
     label: "File",
-    submenu: [{ role: "close", accelerator: "CmdOrCtrl+W" }],
+    submenu: [{ role: "close" }],
   },
   {
     label: "Edit",

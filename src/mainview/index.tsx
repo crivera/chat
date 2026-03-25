@@ -57,6 +57,7 @@ type Schema = {
       setActiveThread: { id: string };
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
+      requestAttention: { title: string; body: string };
     };
   }>;
   webview: RPCSchema<{
