@@ -61,12 +61,7 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: {
-      confirmAction: {
-        params: { message: string };
-        response: boolean;
-      };
-    };
+    requests: Record<string, never>;
     messages: {
       terminalReady: {
         id: string;
@@ -93,11 +88,7 @@ type Schema = {
 const rpc = Electroview.defineRPC<Schema>({
   maxRequestTime: 120000,
   handlers: {
-    requests: {
-      confirmAction: ({ message }: { message: string }) => {
-        return confirm(message);
-      },
-    },
+    requests: {},
     messages: {
       terminalReady: ({
         id,

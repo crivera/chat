@@ -176,12 +176,7 @@ type Schema = {
     };
   }>;
   webview: RPCSchema<{
-    requests: {
-      confirmAction: {
-        params: { message: string };
-        response: boolean;
-      };
-    };
+    requests: Record<string, never>;
     messages: {
       terminalReady: {
         id: string;
@@ -358,41 +353,43 @@ const expectedPermissions = {
   },
 };
 
-async function ensureClaudeSettings(folderPath: string) {
+function ensureClaudeSettings(folderPath: string) {
   const claudeDir = join(folderPath, ".claude");
   const settingsPath = join(claudeDir, "settings.local.json");
 
-  let needsUpdate = false;
+  const expectedAllow = expectedPermissions.permissions.allow;
+  let existing: Record<string, unknown> = {};
 
-  if (!existsSync(settingsPath)) {
-    needsUpdate = true;
-  } else {
+  if (existsSync(settingsPath)) {
     try {
-      const current = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      const currentAllow = current?.permissions?.allow ?? [];
-      const expectedAllow = expectedPermissions.permissions.allow;
-      needsUpdate =
-        expectedAllow.length !== currentAllow.length ||
-        !expectedAllow.every((p: string) => currentAllow.includes(p));
+      existing = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      const currentAllow: string[] =
+        (existing as { permissions?: { allow?: string[] } })?.permissions
+          ?.allow ?? [];
+      const allPresent = expectedAllow.every((p: string) =>
+        currentAllow.includes(p),
+      );
+      if (allPresent) return;
     } catch {
-      needsUpdate = true;
+      // File corrupt or unreadable — rebuild it
     }
   }
 
-  if (!needsUpdate) return;
+  // Merge expected permissions into existing settings
+  const permissions =
+    (existing as { permissions?: Record<string, unknown> })?.permissions ?? {};
+  const currentAllow: string[] = Array.isArray(permissions.allow)
+    ? (permissions.allow as string[])
+    : [];
+  const merged = Array.from(new Set([...currentAllow, ...expectedAllow]));
 
-  // On Windows, confirm() can cause WebView2 issues, so auto-apply settings
-  let confirmed = true;
-  if (!isWindows) {
-    confirmed = await rpc.request.confirmAction({
-      message: `The project "${folderPath}" is missing or has outdated Claude permission settings.\n\nWould you like to set up recommended permissions?\n(Bash, WebFetch, WebSearch, Context7, Skill)`,
-    });
-  }
+  const updated = {
+    ...existing,
+    permissions: { ...permissions, allow: merged },
+  };
 
-  if (confirmed) {
-    mkdirSync(claudeDir, { recursive: true });
-    writeFileSync(settingsPath, JSON.stringify(expectedPermissions, null, 2));
-  }
+  mkdirSync(claudeDir, { recursive: true });
+  writeFileSync(settingsPath, JSON.stringify(updated, null, 2));
 }
 
 function getActiveWorktreePath(folderPath: string): string | null {
@@ -523,9 +520,9 @@ const rpc = BrowserView.defineRPC<Schema>({
       closeWindow: () => {
         win.close();
       },
-      openTerminal: async ({ folderPath }: { folderPath: string }) => {
+      openTerminal: ({ folderPath }: { folderPath: string }) => {
         try {
-          await ensureClaudeSettings(folderPath);
+          ensureClaudeSettings(folderPath);
         } catch (err) {
           console.error("Failed to ensure Claude settings:", err);
         }
@@ -812,11 +809,11 @@ win.webview.on("dom-ready", () => {
 
   const saved = loadSavedProjects();
   if (saved.length > 0) {
-    setTimeout(async () => {
+    setTimeout(() => {
       for (const project of saved) {
         if (existsSync(project.folderPath)) {
           try {
-            await ensureClaudeSettings(project.folderPath);
+            ensureClaudeSettings(project.folderPath);
           } catch (err) {
             console.error(
               "Failed to ensure Claude settings:",
