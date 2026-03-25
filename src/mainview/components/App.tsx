@@ -2,8 +2,10 @@
 import { useEffect, useRef, useCallback } from "preact/hooks";
 import {
   threads,
+  activeId,
   browserUrl,
   openFolderDialog,
+  openNewTerminal,
   closeBrowser,
   openExternal,
   shellAction,
@@ -27,6 +29,12 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === "o") {
         e.preventDefault();
         openFolderDialog();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        const active = activeId.value;
+        const thread = active ? threads.value.get(active) : undefined;
+        if (thread) openNewTerminal(thread.folderPath);
       }
       if (e.key === "Escape" && browserUrl.value) {
         closeBrowser();
