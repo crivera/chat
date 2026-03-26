@@ -215,12 +215,18 @@ function BrowserOverlay() {
   const handleLoad = useCallback(() => {
     try {
       const doc = iframeRef.current?.contentDocument;
-      if (doc && doc.body && doc.body.innerHTML === "") {
+      if (!doc || !doc.body || doc.body.innerHTML === "") {
         openExternal(url);
       }
     } catch {
-      // Cross-origin access denied — loaded successfully
+      // Cross-origin access denied — likely loaded successfully,
+      // but could also be blocked. The backend header check should
+      // have caught most blocked cases already.
     }
+  }, [url]);
+
+  const handleError = useCallback(() => {
+    openExternal(url);
   }, [url]);
 
   return (
@@ -240,6 +246,7 @@ function BrowserOverlay() {
         src={url}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         onLoad={handleLoad}
+        onError={handleError}
       />
     </div>
   );

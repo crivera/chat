@@ -724,16 +724,50 @@ const rpc = BrowserView.defineRPC<Schema>({
   },
 });
 
+// Check if a URL can be embedded in an iframe by inspecting response headers
+async function canEmbed(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(3000),
+    });
+    const xfo = res.headers.get("x-frame-options");
+    if (xfo) {
+      const v = xfo.toUpperCase();
+      if (v === "DENY" || v === "SAMEORIGIN") return false;
+    }
+    const csp = res.headers.get("content-security-policy");
+    if (csp) {
+      const directives = csp.split(";").map((d) => d.trim().toLowerCase());
+      const fa = directives.find((d) => d.startsWith("frame-ancestors "));
+      if (fa && !fa.includes("*")) return false;
+    }
+    return true;
+  } catch {
+    // Network error or timeout — let the iframe try; frontend fallback will handle it
+    return true;
+  }
+}
+
 // HTTP bridge server: receives browser-open requests from the bridge script
 const browserBridge = Bun.serve({
   port: 0,
   hostname: "127.0.0.1",
-  fetch(req) {
+  async fetch(req) {
     const reqUrl = new URL(req.url);
     if (reqUrl.pathname === "/open") {
       const targetUrl = reqUrl.searchParams.get("url");
       if (targetUrl) {
-        rpc.send.browserOpen({ url: targetUrl });
+        const embeddable = await canEmbed(targetUrl);
+        if (embeddable) {
+          rpc.send.browserOpen({ url: targetUrl });
+        } else {
+          Bun.spawn([isWindows ? "explorer.exe" : "open", targetUrl], {
+            stdout: "ignore",
+            stderr: "ignore",
+          });
+        }
       }
       return new Response("ok");
     }
