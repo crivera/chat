@@ -582,15 +582,7 @@ const rpc = BrowserView.defineRPC<Schema>({
         });
       },
       requestAttention: ({ title, body }: { title: string; body: string }) => {
-        if (!isWindows) {
-          const script = `on run argv
-            display notification (item 2 of argv) with title (item 1 of argv)
-          end run`;
-          Bun.spawn(["osascript", "-e", script, "--", title, body], {
-            stdout: "ignore",
-            stderr: "ignore",
-          });
-        }
+        Utils.showNotification({ title, body });
       },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
