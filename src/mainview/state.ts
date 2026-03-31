@@ -190,6 +190,15 @@ export function markActive(id: string) {
     setTimeout(() => {
       updateThread(id, { status: "done" });
       idleTimers.delete(id);
+      if (!document.hasFocus()) {
+        const thread = threads.value.get(id);
+        if (thread) {
+          rpc.send.requestAttention({
+            title: `Chat — ${thread.name}`,
+            body: `${thread.title || "Thread"} is ready`,
+          });
+        }
+      }
     }, 2000),
   );
 }
@@ -285,7 +294,12 @@ export function shellAction(action: string) {
   }
 }
 
-export function showBrowser(url: string) {
+export async function showBrowser(url: string) {
+  const frameable = await rpc.request.checkFrameable({ url });
+  if (!frameable) {
+    openExternal(url);
+    return;
+  }
   if (browserUrl.value) {
     browserUrl.value = url;
     return;

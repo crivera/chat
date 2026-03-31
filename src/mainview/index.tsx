@@ -43,6 +43,10 @@ type Schema = {
         params: { useWorktree: boolean };
         response: void;
       };
+      checkFrameable: {
+        params: { url: string };
+        response: boolean;
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;
