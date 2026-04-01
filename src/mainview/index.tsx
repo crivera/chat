@@ -113,7 +113,7 @@ const rpc = Electroview.defineRPC<Schema>({
         const instance = terminalInstances.get(id);
         if (instance) {
           instance.terminal.write(data);
-          markActive(id);
+          markActive(id, data.length);
           schedulePromptCheck(id);
         }
       },

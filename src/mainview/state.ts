@@ -38,7 +38,25 @@ export interface FolderGroupData {
 
 export const terminalInstances = new Map<string, TerminalInstance>();
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const outputAccumulators = new Map<string, number>();
 const notifiedDone = new Set<string>();
+let lastNotifiedThreadId: string | null = null;
+let lastNotifiedAt = 0;
+
+// When the window regains focus after a notification, switch to that thread
+window.addEventListener("focus", () => {
+  if (lastNotifiedThreadId && Date.now() - lastNotifiedAt < 30000) {
+    const id = lastNotifiedThreadId;
+    lastNotifiedThreadId = null;
+    lastNotifiedAt = 0;
+    if (threads.value.has(id)) {
+      selectThread(id);
+    }
+  } else {
+    lastNotifiedThreadId = null;
+    lastNotifiedAt = 0;
+  }
+});
 const promptCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const promptCooldowns = new Map<string, number>();
 
@@ -160,6 +178,7 @@ export function removeThread(id: string) {
     clearTimeout(timer);
     idleTimers.delete(id);
   }
+  outputAccumulators.delete(id);
   notifiedDone.delete(id);
 
   const checkTimer = promptCheckTimers.get(id);
@@ -181,9 +200,15 @@ export function removeThread(id: string) {
   }
 }
 
-export function markActive(id: string) {
+export function markActive(id: string, dataLen: number) {
   const thread = threads.value.get(id);
   if (!thread || id === activeId.value || !thread.titled) return;
+
+  // Already done — don't re-trigger the working→done cycle from noise
+  if (thread.status === "done") return;
+
+  // Accumulate output volume to distinguish real work from terminal noise
+  outputAccumulators.set(id, (outputAccumulators.get(id) || 0) + dataLen);
 
   const existing = idleTimers.get(id);
   if (existing) clearTimeout(existing);
@@ -193,12 +218,23 @@ export function markActive(id: string) {
   idleTimers.set(
     id,
     setTimeout(() => {
-      updateThread(id, { status: "done" });
       idleTimers.delete(id);
+      const accumulated = outputAccumulators.get(id) || 0;
+      outputAccumulators.delete(id);
+
+      // Trivial output (cursor moves, spinner, title sequences) — back to idle
+      if (accumulated < 200) {
+        updateThread(id, { status: "idle" });
+        return;
+      }
+
+      updateThread(id, { status: "done" });
       if (!document.hasFocus() && !notifiedDone.has(id)) {
         const thread = threads.value.get(id);
         if (thread) {
           notifiedDone.add(id);
+          lastNotifiedThreadId = id;
+          lastNotifiedAt = Date.now();
           rpc.send.requestAttention({
             title: `Chat — ${thread.name}`,
             body: `${thread.title || "Thread"} is ready`,
@@ -221,7 +257,9 @@ export function selectThread(id: string) {
     clearTimeout(timer);
     idleTimers.delete(id);
   }
+  outputAccumulators.delete(id);
   notifiedDone.delete(id);
+  lastNotifiedThreadId = null;
   updateThread(id, { status: "idle" });
 
   for (const [entryId, instance] of terminalInstances) {
@@ -420,6 +458,8 @@ function runPromptCheck(id: string) {
       options: detected.options,
     });
     if (isNew && !document.hasFocus()) {
+      lastNotifiedThreadId = id;
+      lastNotifiedAt = Date.now();
       rpc.send.requestAttention({
         title: `Chat — ${thread.name}`,
         body: detected.question,
