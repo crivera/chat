@@ -488,21 +488,36 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
       checkFrameable: async ({ url }: { url: string }) => {
         try {
+          const parsed = new URL(url);
+          const isLocal =
+            parsed.hostname === "localhost" ||
+            parsed.hostname === "127.0.0.1" ||
+            parsed.hostname === "0.0.0.0";
           const res = await fetch(url, {
             method: "HEAD",
             signal: AbortSignal.timeout(3000),
             redirect: "follow",
           });
           const xfo = res.headers.get("x-frame-options")?.toLowerCase();
-          if (xfo === "deny" || xfo === "sameorigin") return false;
+          if (xfo === "deny" || xfo === "sameorigin") return !isLocal;
           const csp = res.headers.get("content-security-policy");
           if (csp) {
             const match = csp.match(/frame-ancestors\s+([^;]+)/i);
-            if (match && !match[1].includes("*")) return false;
+            if (match && !match[1].includes("*")) return !isLocal;
           }
           return true;
         } catch {
-          return false;
+          // Network error or timeout — local URLs should still open in-app
+          try {
+            const parsed = new URL(url);
+            return (
+              parsed.hostname === "localhost" ||
+              parsed.hostname === "127.0.0.1" ||
+              parsed.hostname === "0.0.0.0"
+            );
+          } catch {
+            return false;
+          }
         }
       },
     },
@@ -719,6 +734,13 @@ const rpc = BrowserView.defineRPC<Schema>({
 // Check if a URL can be embedded in an iframe by inspecting response headers
 async function canEmbed(url: string): Promise<boolean> {
   try {
+    const parsed = new URL(url);
+    const isLocal =
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "0.0.0.0";
+    // Local URLs should always open in-app
+    if (isLocal) return true;
     const res = await fetch(url, {
       method: "HEAD",
       redirect: "follow",
