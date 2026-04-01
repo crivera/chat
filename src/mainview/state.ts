@@ -1,6 +1,7 @@
 import { signal, computed } from "@preact/signals";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
+import { StatusTracker } from "./status-tracker";
 
 // --- Types ---
 
@@ -37,12 +38,27 @@ export interface FolderGroupData {
 // --- Imperative stores ---
 
 export const terminalInstances = new Map<string, TerminalInstance>();
-const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const outputAccumulators = new Map<string, number>();
-const deactivatedAt = new Map<string, number>();
 const notifiedDone = new Set<string>();
 let lastNotifiedThreadId: string | null = null;
 let lastNotifiedAt = 0;
+
+const statusTracker = new StatusTracker({
+  onStatusChange(id, status) {
+    updateThread(id, { status });
+    if (status === "done" && !document.hasFocus() && !notifiedDone.has(id)) {
+      const thread = threads.value.get(id);
+      if (thread) {
+        notifiedDone.add(id);
+        lastNotifiedThreadId = id;
+        lastNotifiedAt = Date.now();
+        rpc.send.requestAttention({
+          title: `Chat — ${thread.name}`,
+          body: `${thread.title || "Thread"} is ready`,
+        });
+      }
+    }
+  },
+});
 
 // When the window regains focus after a notification, switch to that thread
 window.addEventListener("focus", () => {
@@ -147,6 +163,7 @@ export function addThread(
     inputBuffer: "",
   });
   threads.value = map;
+  statusTracker.trackThread(id, !!title);
 
   // Suppress the first "done" notification for restored threads
   if (title) notifiedDone.add(id);
@@ -174,13 +191,7 @@ export function removeThread(id: string) {
     terminalInstances.delete(id);
   }
 
-  const timer = idleTimers.get(id);
-  if (timer) {
-    clearTimeout(timer);
-    idleTimers.delete(id);
-  }
-  outputAccumulators.delete(id);
-  deactivatedAt.delete(id);
+  statusTracker.removeThread(id);
   notifiedDone.delete(id);
 
   const checkTimer = promptCheckTimers.get(id);
@@ -203,96 +214,20 @@ export function removeThread(id: string) {
 }
 
 export function markActive(id: string, dataLen: number) {
-  const thread = threads.value.get(id);
-  if (!thread || id === activeId.value || !thread.titled) return;
-
-  // Already done — don't re-trigger the working→done cycle from noise
-  if (thread.status === "done") return;
-
-  // Ignore residual output right after switching away from this thread
-  const deactivated = deactivatedAt.get(id);
-  if (deactivated) {
-    if (Date.now() - deactivated < 1500) return;
-    deactivatedAt.delete(id);
-  }
-
-  // Accumulate output volume to distinguish real work from terminal noise
-  const accumulated = (outputAccumulators.get(id) || 0) + dataLen;
-  outputAccumulators.set(id, accumulated);
-
-  const existing = idleTimers.get(id);
-  if (existing) clearTimeout(existing);
-
-  // Only show "working" once enough output has accumulated to indicate real activity
-  if (accumulated >= 200 && thread.status !== "working") {
-    updateThread(id, { status: "working" });
-  }
-
-  idleTimers.set(
-    id,
-    setTimeout(() => {
-      idleTimers.delete(id);
-      const total = outputAccumulators.get(id) || 0;
-      outputAccumulators.delete(id);
-
-      // Trivial output (cursor moves, spinner, title sequences) — stay idle
-      if (total < 200) {
-        return;
-      }
-
-      updateThread(id, { status: "done" });
-      if (!document.hasFocus() && !notifiedDone.has(id)) {
-        const thread = threads.value.get(id);
-        if (thread) {
-          notifiedDone.add(id);
-          lastNotifiedThreadId = id;
-          lastNotifiedAt = Date.now();
-          rpc.send.requestAttention({
-            title: `Chat — ${thread.name}`,
-            body: `${thread.title || "Thread"} is ready`,
-          });
-        }
-      }
-    }, 2000),
-  );
+  statusTracker.markActive(id, dataLen, activeId.value);
 }
 
 export function selectThread(id: string) {
   if (browserUrl.value) closeBrowser();
   dismissPrompt(id);
 
-  // Reset tracking for the thread we're leaving so residual output
-  // doesn't trigger a false working→done cycle
-  const prevId = activeId.value;
-  if (prevId && prevId !== id) {
-    const prevTimer = idleTimers.get(prevId);
-    if (prevTimer) {
-      clearTimeout(prevTimer);
-      idleTimers.delete(prevId);
-    }
-    outputAccumulators.delete(prevId);
-    deactivatedAt.set(prevId, Date.now());
-    const prevThread = threads.value.get(prevId);
-    if (prevThread && prevThread.status === "working") {
-      updateThread(prevId, { status: "idle" });
-    }
-  }
+  statusTracker.selectThread(id, activeId.value);
 
   activeId.value = id;
   rpc.send.setActiveThread({ id });
 
-  const timer = idleTimers.get(id);
-  if (timer) {
-    clearTimeout(timer);
-    idleTimers.delete(id);
-  }
-  outputAccumulators.delete(id);
   notifiedDone.delete(id);
   lastNotifiedThreadId = null;
-  const thread = threads.value.get(id);
-  if (thread && thread.status !== "idle") {
-    updateThread(id, { status: "idle" });
-  }
 
   for (const [entryId, instance] of terminalInstances) {
     instance.container.classList.toggle("active", entryId === id);
@@ -321,6 +256,7 @@ export function handleTerminalInput(id: string, data: string) {
         title: displayTitle,
         inputBuffer: "",
       });
+      statusTracker.setTitled(id, true);
       rpc.send.setThreadTitle({ id, title: displayTitle });
     } else {
       updateThread(id, { inputBuffer: "" });
