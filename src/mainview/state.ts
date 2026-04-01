@@ -39,6 +39,7 @@ export interface FolderGroupData {
 export const terminalInstances = new Map<string, TerminalInstance>();
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const outputAccumulators = new Map<string, number>();
+const deactivatedAt = new Map<string, number>();
 const notifiedDone = new Set<string>();
 let lastNotifiedThreadId: string | null = null;
 let lastNotifiedAt = 0;
@@ -179,6 +180,7 @@ export function removeThread(id: string) {
     idleTimers.delete(id);
   }
   outputAccumulators.delete(id);
+  deactivatedAt.delete(id);
   notifiedDone.delete(id);
 
   const checkTimer = promptCheckTimers.get(id);
@@ -206,6 +208,13 @@ export function markActive(id: string, dataLen: number) {
 
   // Already done — don't re-trigger the working→done cycle from noise
   if (thread.status === "done") return;
+
+  // Ignore residual output right after switching away from this thread
+  const deactivated = deactivatedAt.get(id);
+  if (deactivated) {
+    if (Date.now() - deactivated < 1500) return;
+    deactivatedAt.delete(id);
+  }
 
   // Accumulate output volume to distinguish real work from terminal noise
   outputAccumulators.set(id, (outputAccumulators.get(id) || 0) + dataLen);
@@ -248,6 +257,23 @@ export function markActive(id: string, dataLen: number) {
 export function selectThread(id: string) {
   if (browserUrl.value) closeBrowser();
   dismissPrompt(id);
+
+  // Reset tracking for the thread we're leaving so residual output
+  // doesn't trigger a false working→done cycle
+  const prevId = activeId.value;
+  if (prevId && prevId !== id) {
+    const prevTimer = idleTimers.get(prevId);
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+      idleTimers.delete(prevId);
+    }
+    outputAccumulators.delete(prevId);
+    deactivatedAt.set(prevId, Date.now());
+    const prevThread = threads.value.get(prevId);
+    if (prevThread && prevThread.status === "working") {
+      updateThread(prevId, { status: "idle" });
+    }
+  }
 
   activeId.value = id;
   rpc.send.setActiveThread({ id });
