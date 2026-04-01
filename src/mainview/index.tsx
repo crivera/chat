@@ -47,6 +47,14 @@ type Schema = {
         params: { url: string };
         response: boolean;
       };
+      getBranches: {
+        params: { id: string };
+        response: { current: string; branches: string[] };
+      };
+      checkoutBranch: {
+        params: { id: string; branch: string };
+        response: { ok: boolean; output: string };
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;

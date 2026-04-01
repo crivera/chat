@@ -200,6 +200,14 @@ type Schema = {
         params: { url: string };
         response: boolean;
       };
+      getBranches: {
+        params: { id: string };
+        response: { current: string; branches: string[] };
+      };
+      checkoutBranch: {
+        params: { id: string; branch: string };
+        response: { ok: boolean; output: string };
+      };
     };
     messages: {
       minimizeWindow: Record<string, never>;
@@ -532,6 +540,52 @@ const rpc = BrowserView.defineRPC<Schema>({
         saveSettings(appSettings);
       },
       checkFrameable: ({ url }: { url: string }) => canEmbed(url),
+      getBranches: async ({ id }: { id: string }) => {
+        const terminal = terminals.get(id);
+        if (!terminal) return { current: "", branches: [] };
+        const folder = terminal.folderPath;
+        const run = (args: string[]) =>
+          Bun.spawn(["git", ...args], {
+            cwd: folder,
+            env: userEnv,
+            stdout: "pipe",
+            stderr: "pipe",
+          });
+        const currentProc = run(["rev-parse", "--abbrev-ref", "HEAD"]);
+        const branchProc = run([
+          "branch",
+          "--sort=-committerdate",
+          "--format=%(refname:short)",
+        ]);
+        const current = (await new Response(currentProc.stdout).text()).trim();
+        const branchOutput = (
+          await new Response(branchProc.stdout).text()
+        ).trim();
+        const branches = branchOutput
+          ? branchOutput.split("\n").filter((b) => b !== current)
+          : [];
+        return { current, branches: [current, ...branches] };
+      },
+      checkoutBranch: async ({
+        id,
+        branch,
+      }: {
+        id: string;
+        branch: string;
+      }) => {
+        const terminal = terminals.get(id);
+        if (!terminal) return { ok: false, output: "Terminal not found" };
+        const proc = Bun.spawn(["git", "checkout", branch], {
+          cwd: terminal.folderPath,
+          env: userEnv,
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const stdout = await new Response(proc.stdout).text();
+        const stderr = await new Response(proc.stderr).text();
+        const code = await proc.exited;
+        return { ok: code === 0, output: (stdout + stderr).trim() };
+      },
     },
     messages: {
       minimizeWindow: () => {

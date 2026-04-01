@@ -626,6 +626,132 @@ body {
   flex-shrink: 0;
 }
 
+/* Branch switcher */
+.branch-switcher {
+  position: relative;
+  margin-right: auto;
+}
+
+.branch-btn {
+  background: #22223a;
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.branch-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-chevron {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.branch-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 320px;
+  background: #1e1e36;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.branch-search {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #2a2a40;
+  background: transparent;
+  color: #dddde8;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.branch-search::placeholder {
+  color: #666680;
+}
+
+.branch-search:focus {
+  border-bottom-color: #4a4a80;
+}
+
+.branch-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.branch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #b8b8d5;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.branch-item:hover {
+  background: #2a2a45;
+  color: #dddde8;
+}
+
+.branch-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.branch-item-badge {
+  flex-shrink: 0;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: #2a2a45;
+  color: #666680;
+  font-size: 11px;
+}
+
+.branch-current .branch-item-badge {
+  background: #33334a;
+  color: #8888a8;
+}
+
+.branch-empty {
+  padding: 12px;
+  color: #666680;
+  font-size: 13px;
+  text-align: center;
+}
+
+.branch-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.branch-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.branch-list::-webkit-scrollbar-thumb {
+  background: #333350;
+  border-radius: 3px;
+}
+
 /* Terminal area */
 #terminal-area {
   flex: 1;

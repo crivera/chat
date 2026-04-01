@@ -18,6 +18,7 @@ import {
 import { Sidebar } from "./Sidebar";
 import { Settings } from "./Settings";
 import { PromptPopup } from "./PromptPopup";
+import { BranchSwitcher } from "./BranchSwitcher";
 
 export function App() {
   const hasTerminals = threads.value.size > 0;
@@ -93,6 +94,7 @@ export function App() {
 function Toolbar() {
   return (
     <div id="toolbar">
+      <BranchSwitcher />
       <div class="toolbar-group">
         <button
           class="toolbar-btn"

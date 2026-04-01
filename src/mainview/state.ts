@@ -307,6 +307,21 @@ export function shellAction(action: string) {
   }
 }
 
+export async function getBranches(): Promise<{
+  current: string;
+  branches: string[];
+}> {
+  if (!activeId.value) return { current: "", branches: [] };
+  return rpc.request.getBranches({ id: activeId.value });
+}
+
+export async function checkoutBranch(
+  branch: string,
+): Promise<{ ok: boolean; output: string }> {
+  if (!activeId.value) return { ok: false, output: "No active terminal" };
+  return rpc.request.checkoutBranch({ id: activeId.value, branch });
+}
+
 export async function showBrowser(url: string) {
   const frameable = await rpc.request.checkFrameable({ url });
   if (!frameable) {
