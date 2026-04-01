@@ -38,6 +38,7 @@ export interface FolderGroupData {
 
 export const terminalInstances = new Map<string, TerminalInstance>();
 const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const notifiedDone = new Set<string>();
 const promptCheckTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const promptCooldowns = new Map<string, number>();
 
@@ -128,6 +129,9 @@ export function addThread(
   });
   threads.value = map;
 
+  // Suppress the first "done" notification for restored threads
+  if (title) notifiedDone.add(id);
+
   const collapsed = new Set(collapsedFolders.value);
   if (isLast === false) {
     // Restored non-active thread: start collapsed
@@ -156,6 +160,7 @@ export function removeThread(id: string) {
     clearTimeout(timer);
     idleTimers.delete(id);
   }
+  notifiedDone.delete(id);
 
   const checkTimer = promptCheckTimers.get(id);
   if (checkTimer) {
@@ -190,9 +195,10 @@ export function markActive(id: string) {
     setTimeout(() => {
       updateThread(id, { status: "done" });
       idleTimers.delete(id);
-      if (!document.hasFocus()) {
+      if (!document.hasFocus() && !notifiedDone.has(id)) {
         const thread = threads.value.get(id);
         if (thread) {
+          notifiedDone.add(id);
           rpc.send.requestAttention({
             title: `Chat — ${thread.name}`,
             body: `${thread.title || "Thread"} is ready`,
@@ -215,6 +221,7 @@ export function selectThread(id: string) {
     clearTimeout(timer);
     idleTimers.delete(id);
   }
+  notifiedDone.delete(id);
   updateThread(id, { status: "idle" });
 
   for (const [entryId, instance] of terminalInstances) {
