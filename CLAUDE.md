@@ -5,7 +5,9 @@ A desktop wrapper for Claude Code built with Electrobun + xterm.js. Runs Claude 
 ## Architecture
 
 - **`src/bun/index.ts`** — Backend (Bun process): PTY spawning, RPC handlers, persistence, shell actions, auto-update
-- **`src/mainview/index.ts`** — Frontend (webview): xterm.js terminal UI, project list, settings panel
+- **`src/mainview/index.tsx`** — Frontend (webview): xterm.js terminal setup, RPC wiring
+- **`src/mainview/state.ts`** — Frontend state: thread management, status tracking (working/done indicators), signals
+- **`src/mainview/components/`** — Preact components: `App.tsx`, `Sidebar.tsx`, `Settings.tsx`, `PromptPopup.tsx`
 - **`src/mainview/index.html`** / **`index.css`** — UI markup and styles
 - **`electrobun.config.ts`** — Build config: entrypoints, platform assets, code signing
 
@@ -32,6 +34,8 @@ A desktop wrapper for Claude Code built with Electrobun + xterm.js. Runs Claude 
 
 ## Conventions
 
-- Pre-commit hook runs `eslint --fix` and `prettier --write` on staged `.ts` files via lint-staged
-- RPC schemas must match exactly between `src/bun/index.ts` and `src/mainview/index.ts`
+- Pre-commit hook runs `eslint --fix` and `prettier --write` on staged `.ts`/`.tsx` files via lint-staged
+- RPC schemas must match exactly between `src/bun/index.ts` and `src/mainview/index.tsx` (duplicated intentionally — do not extract to a shared file)
 - Wrap addon loading in try/catch — if an addon fails to load it should not break terminal setup
+- Guard `updateThread` calls with a change check — it clones the signal Map, so no-op calls cause unnecessary re-renders
+- Background thread status indicators (working/done) use an output byte threshold (200 bytes) to filter terminal noise from real activity — don't set "working" status eagerly

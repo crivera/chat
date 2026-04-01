@@ -119,6 +119,43 @@ function saveProjects(projects: SavedProject[]) {
   writeFileSync(configFile, JSON.stringify(projects, null, 2));
 }
 
+function isLocalHostname(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0"
+  );
+}
+
+// Check if a URL can be embedded in an iframe by inspecting response headers
+async function canEmbed(url: string): Promise<boolean> {
+  try {
+    const parsed = new URL(url);
+    const isLocal = isLocalHostname(parsed.hostname);
+    if (isLocal) return true;
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(3000),
+    });
+    const xfo = res.headers.get("x-frame-options")?.toUpperCase();
+    if (xfo === "DENY" || xfo === "SAMEORIGIN") return false;
+    const csp = res.headers.get("content-security-policy");
+    if (csp) {
+      const match = csp.match(/frame-ancestors\s+([^;]+)/i);
+      if (match && !match[1].includes("*")) return false;
+    }
+    return true;
+  } catch {
+    // Network error or timeout — local URLs should still open in-app
+    try {
+      return isLocalHostname(new URL(url).hostname);
+    } catch {
+      return false;
+    }
+  }
+}
+
 // Browser bridge: write a shell script that routes browser opens back to the app
 function ensureBridgeScript(): string {
   mkdirSync(configDir, { recursive: true });
@@ -128,6 +165,11 @@ function ensureBridgeScript(): string {
     "curl -s \"http://127.0.0.1:${CHAT_BROWSER_PORT}/open?url=$(printf '%s' \"$1\" | sed 's/ /%20/g;s/?/%3F/g;s/&/%26/g;s/=/%3D/g;s/#/%23/g')\" > /dev/null 2>&1",
     "",
   ].join("\n");
+  try {
+    if (readFileSync(scriptPath, "utf-8") === script) return scriptPath;
+  } catch {
+    // File doesn't exist yet
+  }
   writeFileSync(scriptPath, script);
   chmodSync(scriptPath, 0o755);
   return scriptPath;
@@ -225,6 +267,19 @@ function ensureGitRepo(folderPath: string) {
   }
 }
 
+function findDefaultBranch(branchListOutput: string): string | null {
+  const branches = branchListOutput
+    .split("\n")
+    .map((b) => b.replace("*", "").trim())
+    .filter(Boolean);
+  return (
+    branches.find((b) => b === "main") ||
+    branches.find((b) => b === "develop") ||
+    branches.find((b) => b === "master") ||
+    null
+  );
+}
+
 /** If the current branch's remote tracking branch is gone, switch to the default branch and pull. */
 function ensureBranchExists(folderPath: string) {
   const git = (args: string[]) =>
@@ -263,15 +318,7 @@ function ensureBranchExists(folderPath: string) {
 
   // Remote branch is gone — find the default branch
   const branchList = git(["branch", "--list"]);
-  const branches = branchList.stdout
-    .toString()
-    .split("\n")
-    .map((b: string) => b.replace("*", "").trim())
-    .filter(Boolean);
-  const defaultBranch =
-    branches.find((b: string) => b === "main") ||
-    branches.find((b: string) => b === "develop") ||
-    branches.find((b: string) => b === "master");
+  const defaultBranch = findDefaultBranch(branchList.stdout.toString());
   if (!defaultBranch) return;
 
   git(["checkout", defaultBranch]);
@@ -320,7 +367,6 @@ function spawnTerminal(
         .filter(Boolean)
         .join(isWindows ? ";" : ":"),
       CHAT_BROWSER_PORT: String(browserBridgePort),
-      PLANNOTATOR_BROWSER: bridgeScriptPath,
       BROWSER: bridgeScriptPath,
     },
   });
@@ -400,15 +446,14 @@ function getActiveWorktreePath(folderPath: string): string | null {
       .map((name) => {
         const full = join(worktreesDir, name);
         try {
-          return { path: full, mtime: statSync(full).mtimeMs };
+          const stat = statSync(full);
+          if (!stat.isDirectory()) return null;
+          return { path: full, mtime: stat.mtimeMs };
         } catch {
           return null;
         }
       })
-      .filter(
-        (e): e is { path: string; mtime: number } =>
-          e !== null && statSync(e.path).isDirectory(),
-      );
+      .filter((e): e is { path: string; mtime: number } => e !== null);
     if (entries.length === 0) return null;
     entries.sort((a, b) => b.mtime - a.mtime);
     return entries[0].path;
@@ -486,40 +531,7 @@ const rpc = BrowserView.defineRPC<Schema>({
         appSettings = { ...appSettings, ...settings };
         saveSettings(appSettings);
       },
-      checkFrameable: async ({ url }: { url: string }) => {
-        try {
-          const parsed = new URL(url);
-          const isLocal =
-            parsed.hostname === "localhost" ||
-            parsed.hostname === "127.0.0.1" ||
-            parsed.hostname === "0.0.0.0";
-          const res = await fetch(url, {
-            method: "HEAD",
-            signal: AbortSignal.timeout(3000),
-            redirect: "follow",
-          });
-          const xfo = res.headers.get("x-frame-options")?.toLowerCase();
-          if (xfo === "deny" || xfo === "sameorigin") return !isLocal;
-          const csp = res.headers.get("content-security-policy");
-          if (csp) {
-            const match = csp.match(/frame-ancestors\s+([^;]+)/i);
-            if (match && !match[1].includes("*")) return !isLocal;
-          }
-          return true;
-        } catch {
-          // Network error or timeout — local URLs should still open in-app
-          try {
-            const parsed = new URL(url);
-            return (
-              parsed.hostname === "localhost" ||
-              parsed.hostname === "127.0.0.1" ||
-              parsed.hostname === "0.0.0.0"
-            );
-          } catch {
-            return false;
-          }
-        }
-      },
+      checkFrameable: ({ url }: { url: string }) => canEmbed(url),
     },
     messages: {
       minimizeWindow: () => {
@@ -688,15 +700,8 @@ const rpc = BrowserView.defineRPC<Schema>({
             break;
           }
           case "git-reset": {
-            // Find the default branch (main or develop)
             const branches = await runGit(["branch", "--list"]);
-            const branchList = branches.output
-              .split("\n")
-              .map((b) => b.replace("*", "").trim());
-            const defaultBranch =
-              branchList.find((b) => b === "main") ||
-              branchList.find((b) => b === "develop") ||
-              branchList.find((b) => b === "master");
+            const defaultBranch = findDefaultBranch(branches.output);
             if (!defaultBranch) {
               rpc.send.actionResult({
                 id,
@@ -730,39 +735,6 @@ const rpc = BrowserView.defineRPC<Schema>({
     },
   },
 });
-
-// Check if a URL can be embedded in an iframe by inspecting response headers
-async function canEmbed(url: string): Promise<boolean> {
-  try {
-    const parsed = new URL(url);
-    const isLocal =
-      parsed.hostname === "localhost" ||
-      parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "0.0.0.0";
-    // Local URLs should always open in-app
-    if (isLocal) return true;
-    const res = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: AbortSignal.timeout(3000),
-    });
-    const xfo = res.headers.get("x-frame-options");
-    if (xfo) {
-      const v = xfo.toUpperCase();
-      if (v === "DENY" || v === "SAMEORIGIN") return false;
-    }
-    const csp = res.headers.get("content-security-policy");
-    if (csp) {
-      const directives = csp.split(";").map((d) => d.trim().toLowerCase());
-      const fa = directives.find((d) => d.startsWith("frame-ancestors "));
-      if (fa && !fa.includes("*")) return false;
-    }
-    return true;
-  } catch {
-    // Network error or timeout — let the iframe try; frontend fallback will handle it
-    return true;
-  }
-}
 
 // HTTP bridge server: receives browser-open requests from the bridge script
 const browserBridge = Bun.serve({

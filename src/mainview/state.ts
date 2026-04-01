@@ -217,23 +217,26 @@ export function markActive(id: string, dataLen: number) {
   }
 
   // Accumulate output volume to distinguish real work from terminal noise
-  outputAccumulators.set(id, (outputAccumulators.get(id) || 0) + dataLen);
+  const accumulated = (outputAccumulators.get(id) || 0) + dataLen;
+  outputAccumulators.set(id, accumulated);
 
   const existing = idleTimers.get(id);
   if (existing) clearTimeout(existing);
 
-  updateThread(id, { status: "working" });
+  // Only show "working" once enough output has accumulated to indicate real activity
+  if (accumulated >= 200 && thread.status !== "working") {
+    updateThread(id, { status: "working" });
+  }
 
   idleTimers.set(
     id,
     setTimeout(() => {
       idleTimers.delete(id);
-      const accumulated = outputAccumulators.get(id) || 0;
+      const total = outputAccumulators.get(id) || 0;
       outputAccumulators.delete(id);
 
-      // Trivial output (cursor moves, spinner, title sequences) — back to idle
-      if (accumulated < 200) {
-        updateThread(id, { status: "idle" });
+      // Trivial output (cursor moves, spinner, title sequences) — stay idle
+      if (total < 200) {
         return;
       }
 
@@ -286,7 +289,10 @@ export function selectThread(id: string) {
   outputAccumulators.delete(id);
   notifiedDone.delete(id);
   lastNotifiedThreadId = null;
-  updateThread(id, { status: "idle" });
+  const thread = threads.value.get(id);
+  if (thread && thread.status !== "idle") {
+    updateThread(id, { status: "idle" });
+  }
 
   for (const [entryId, instance] of terminalInstances) {
     instance.container.classList.toggle("active", entryId === id);
