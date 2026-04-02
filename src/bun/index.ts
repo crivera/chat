@@ -379,6 +379,7 @@ function spawnTerminal(
       PATH: [join(homedir(), ".local", "bin"), userEnv.PATH || process.env.PATH]
         .filter(Boolean)
         .join(isWindows ? ";" : ":"),
+      CLAUDE_CODE_NO_FLICKER: "1",
       CHAT_BROWSER_PORT: String(browserBridgePort),
       BROWSER: bridgeScriptPath,
     },
