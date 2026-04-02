@@ -1,6 +1,12 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
-import { getBranches, checkoutBranch, showToast, activeId } from "../state";
+import {
+  getBranches,
+  checkoutBranch,
+  showToast,
+  activeId,
+  branchChange,
+} from "../state";
 
 export function BranchSwitcher() {
   const [open, setOpen] = useState(false);
@@ -22,6 +28,14 @@ export function BranchSwitcher() {
   useEffect(() => {
     load();
   }, [load, termId]);
+
+  // Update when branch changes via git command in terminal
+  const change = branchChange.value;
+  useEffect(() => {
+    if (change && change.id === activeId.value) {
+      setCurrent(change.branch);
+    }
+  }, [change]);
 
   useEffect(() => {
     if (open) {

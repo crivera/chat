@@ -16,6 +16,7 @@ import {
   readdirSync,
   statSync,
   chmodSync,
+  watch,
 } from "fs";
 import { spawn as ptySpawn } from "bun-pty";
 import pkg from "../../package.json";
@@ -238,6 +239,7 @@ type Schema = {
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
       actionResult: { id: string; action: string; output: string; ok: boolean };
+      branchChanged: { id: string; branch: string };
       updateToast: { message: string };
       refitTerminals: Record<string, never>;
       browserOpen: { url: string };
@@ -255,6 +257,7 @@ interface TerminalProcess {
 }
 
 const terminals = new Map<string, TerminalProcess>();
+const branchWatchers = new Map<string, ReturnType<typeof watch>>();
 let nextId = 1;
 let activeTerminalId: string | null = null;
 
@@ -383,11 +386,32 @@ function spawnTerminal(
 
   rpc.send.terminalReady({ id, name, folderPath, title, isLast });
 
+  // Watch .git/HEAD for branch changes
+  const gitHeadPath = join(folderPath, ".git", "HEAD");
+  try {
+    const watcher = watch(gitHeadPath, () => {
+      try {
+        const head = readFileSync(gitHeadPath, "utf-8").trim();
+        const match = head.match(/^ref: refs\/heads\/(.+)$/);
+        if (match) {
+          rpc.send.branchChanged({ id, branch: match[1] });
+        }
+      } catch {
+        // ignore read errors (e.g. mid-write)
+      }
+    });
+    branchWatchers.set(id, watcher);
+  } catch {
+    // .git/HEAD may not exist yet for fresh repos
+  }
+
   pty.onData((data: string) => {
     rpc.send.terminalOutput({ id, data });
   });
 
   pty.onExit(() => {
+    branchWatchers.get(id)?.close();
+    branchWatchers.delete(id);
     terminals.delete(id);
     rpc.send.terminalExit({ id });
   });
@@ -618,6 +642,8 @@ const rpc = BrowserView.defineRPC<Schema>({
         const terminal = terminals.get(id);
         if (terminal) {
           terminal.pty.kill();
+          branchWatchers.get(id)?.close();
+          branchWatchers.delete(id);
           terminals.delete(id);
           persistCurrentProjects();
         }

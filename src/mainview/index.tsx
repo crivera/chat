@@ -21,6 +21,7 @@ import {
   refitAllTerminals,
   schedulePromptCheck,
   dismissPromptOnInput,
+  branchChange,
 } from "./state";
 import { App } from "./components/App";
 
@@ -84,6 +85,7 @@ type Schema = {
       };
       terminalOutput: { id: string; data: string };
       terminalExit: { id: string };
+      branchChanged: { id: string; branch: string };
       actionResult: {
         id: string;
         action: string;
@@ -127,6 +129,9 @@ const rpc = Electroview.defineRPC<Schema>({
       },
       terminalExit: ({ id }: { id: string }) => {
         removeThread(id);
+      },
+      branchChanged: ({ id, branch }: { id: string; branch: string }) => {
+        branchChange.value = { id, branch };
       },
       actionResult: ({
         action,

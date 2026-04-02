@@ -92,6 +92,7 @@ export const settingsOpen = signal(false);
 export const browserUrl = signal<string | null>(null);
 export const collapsedFolders = signal<Set<string>>(new Set());
 export const activePrompts = signal<Map<string, DetectedPrompt>>(new Map());
+export const branchChange = signal<{ id: string; branch: string } | null>(null);
 
 // --- Computed ---
 
