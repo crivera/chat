@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef, useCallback } from "preact/hooks";
-import { getBranches, checkoutBranch, showToast } from "../state";
+import { getBranches, checkoutBranch, showToast, activeId } from "../state";
 
 export function BranchSwitcher() {
   const [open, setOpen] = useState(false);
@@ -17,10 +17,11 @@ export function BranchSwitcher() {
     setBranches(data.branches);
   }, []);
 
-  // Load current branch on mount and when dropdown opens
+  // Reload when active terminal changes
+  const termId = activeId.value;
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, termId]);
 
   useEffect(() => {
     if (open) {
