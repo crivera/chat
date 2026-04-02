@@ -224,6 +224,7 @@ type Schema = {
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
       requestAttention: { title: string; body: string };
+      applyUpdate: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{
@@ -241,6 +242,7 @@ type Schema = {
       actionResult: { id: string; action: string; output: string; ok: boolean };
       branchChanged: { id: string; branch: string };
       updateToast: { message: string };
+      updateReady: Record<string, never>;
       refitTerminals: Record<string, never>;
       browserOpen: { url: string };
     };
@@ -410,9 +412,12 @@ function spawnTerminal(
   });
 
   pty.onExit(() => {
-    branchWatchers.get(id)?.close();
-    branchWatchers.delete(id);
-    terminals.delete(id);
+    // Guard: closeTerminal may have already cleaned up
+    if (terminals.has(id)) {
+      terminals.delete(id);
+      branchWatchers.get(id)?.close();
+      branchWatchers.delete(id);
+    }
     rpc.send.terminalExit({ id });
   });
 }
@@ -641,17 +646,26 @@ const rpc = BrowserView.defineRPC<Schema>({
       closeTerminal: ({ id }: { id: string }) => {
         const terminal = terminals.get(id);
         if (terminal) {
-          terminal.pty.kill();
+          // Remove from map first to prevent write/resize calls during teardown
+          terminals.delete(id);
           branchWatchers.get(id)?.close();
           branchWatchers.delete(id);
-          terminals.delete(id);
+          try {
+            terminal.pty.kill();
+          } catch {
+            // PTY may already be dead
+          }
           persistCurrentProjects();
         }
       },
       terminalInput: ({ id, data }: { id: string; data: string }) => {
         const terminal = terminals.get(id);
         if (terminal) {
-          terminal.pty.write(data);
+          try {
+            terminal.pty.write(data);
+          } catch {
+            // PTY may have exited between the check and the write
+          }
         }
       },
       setThreadTitle: ({ id, title }: { id: string; title: string }) => {
@@ -676,7 +690,11 @@ const rpc = BrowserView.defineRPC<Schema>({
       }) => {
         const terminal = terminals.get(id);
         if (terminal) {
-          terminal.pty.resize(cols, rows);
+          try {
+            terminal.pty.resize(cols, rows);
+          } catch {
+            // PTY may have exited between the check and the resize
+          }
         }
       },
       closeBrowser: () => {
@@ -690,6 +708,13 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
       requestAttention: ({ title, body }: { title: string; body: string }) => {
         Utils.showNotification({ title, body });
+      },
+      applyUpdate: async () => {
+        try {
+          await Updater.applyUpdate();
+        } catch {
+          // Update apply failed — user can try again
+        }
       },
       shellAction: async ({ id, action }: { id: string; action: string }) => {
         const terminal = terminals.get(id);
@@ -942,7 +967,10 @@ win.webview.on("dom-ready", () => {
 });
 
 // Auto-update: check on launch, then every 30 minutes
+let updatePending = false;
+
 async function checkForUpdates() {
+  if (updatePending) return;
   try {
     const result = await Updater.checkForUpdate();
     if (result.updateAvailable) {
@@ -950,8 +978,13 @@ async function checkForUpdates() {
       await Updater.downloadUpdate();
       const info = Updater.updateInfo();
       if (info.updateReady) {
-        rpc.send.updateToast({ message: "Update ready — restarting..." });
-        await Updater.applyUpdate();
+        if (terminals.size === 0) {
+          rpc.send.updateToast({ message: "Update ready — restarting..." });
+          await Updater.applyUpdate();
+        } else {
+          updatePending = true;
+          rpc.send.updateReady({});
+        }
       }
     }
   } catch {

@@ -22,6 +22,7 @@ import {
   schedulePromptCheck,
   dismissPromptOnInput,
   branchChange,
+  setUpdateReady,
 } from "./state";
 import { App } from "./components/App";
 
@@ -71,6 +72,7 @@ type Schema = {
       closeBrowser: Record<string, never>;
       openExternal: { url: string };
       requestAttention: { title: string; body: string };
+      applyUpdate: Record<string, never>;
     };
   }>;
   webview: RPCSchema<{
@@ -93,6 +95,7 @@ type Schema = {
         ok: boolean;
       };
       updateToast: { message: string };
+      updateReady: Record<string, never>;
       refitTerminals: Record<string, never>;
       browserOpen: { url: string };
     };
@@ -147,6 +150,9 @@ const rpc = Electroview.defineRPC<Schema>({
       },
       updateToast: ({ message }: { message: string }) => {
         showToast("Update", message, true);
+      },
+      updateReady: () => {
+        setUpdateReady();
       },
       refitTerminals: () => {
         refitAllTerminals();

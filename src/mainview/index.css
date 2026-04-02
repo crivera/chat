@@ -1088,3 +1088,36 @@ body {
   max-height: 150px;
   overflow-y: auto;
 }
+
+.update-banner {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #dddde8;
+  background: #22223a;
+  border: 1px solid #2a5a3a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.update-banner-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: none;
+  background: #2a5a3a;
+  color: #d5d5e8;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.update-banner-btn:hover {
+  background: #3a7a4a;
+}

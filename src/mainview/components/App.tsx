@@ -4,6 +4,7 @@ import {
   threads,
   activeId,
   browserUrl,
+  updateReady,
   openFolderDialog,
   openNewTerminal,
   closeTerminal,
@@ -14,6 +15,7 @@ import {
   refitActiveTerminal,
   cycleThread,
   selectThreadByIndex,
+  applyUpdate,
 } from "../state";
 import { Sidebar } from "./Sidebar";
 import { Settings } from "./Settings";
@@ -87,6 +89,7 @@ export function App() {
       </div>
       <Settings />
       <PromptPopup />
+      {updateReady.value && <UpdateBanner />}
     </>
   );
 }
@@ -210,6 +213,17 @@ function Toolbar() {
   );
 }
 
+function UpdateBanner() {
+  return (
+    <div class="update-banner">
+      <span>A new update is ready to install</span>
+      <button class="update-banner-btn" onClick={() => applyUpdate()}>
+        Restart now
+      </button>
+    </div>
+  );
+}
+
 function BrowserOverlay() {
   const url = browserUrl.value!;
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -217,13 +231,13 @@ function BrowserOverlay() {
   const handleLoad = useCallback(() => {
     try {
       const doc = iframeRef.current?.contentDocument;
-      if (!doc || !doc.body || doc.body.innerHTML === "") {
+      // contentDocument is null for cross-origin iframes in WebKit —
+      // treat that as "loaded successfully" since canEmbed already verified it.
+      if (doc && (!doc.body || doc.body.innerHTML === "")) {
         openExternal(url);
       }
     } catch {
-      // Cross-origin access denied — likely loaded successfully,
-      // but could also be blocked. The backend header check should
-      // have caught most blocked cases already.
+      // Cross-origin access denied — loaded successfully
     }
   }, [url]);
 

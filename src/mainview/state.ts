@@ -92,6 +92,7 @@ export const settingsOpen = signal(false);
 export const browserUrl = signal<string | null>(null);
 export const collapsedFolders = signal<Set<string>>(new Set());
 export const activePrompts = signal<Map<string, DetectedPrompt>>(new Map());
+export const updateReady = signal(false);
 export const branchChange = signal<{ id: string; branch: string } | null>(null);
 
 // --- Computed ---
@@ -373,6 +374,14 @@ export async function getSettings() {
 
 export async function setSettings(s: { useWorktree: boolean }) {
   return rpc.request.setSettings(s);
+}
+
+export function setUpdateReady() {
+  updateReady.value = true;
+}
+
+export function applyUpdate() {
+  rpc.send.applyUpdate({});
 }
 
 export function refitAllTerminals() {
