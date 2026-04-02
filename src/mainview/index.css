@@ -775,8 +775,10 @@ body {
 
 .terminal-container {
   position: absolute;
-  inset: 0;
-  padding: 4px;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
   display: none;
 }
 
