@@ -22,6 +22,7 @@ import {
   schedulePromptCheck,
   dismissPromptOnInput,
   branchChange,
+  branchReload,
   setUpdateReady,
 } from "./state";
 import { App } from "./components/App";
@@ -153,6 +154,9 @@ const rpc = Electroview.defineRPC<Schema>({
         ok: boolean;
       }) => {
         showToast(`git ${action}`, output, ok);
+        if (action === "reset" || action === "pull" || action === "status") {
+          branchReload.value++;
+        }
       },
       updateToast: ({ message }: { message: string }) => {
         showToast("Update", message, true);

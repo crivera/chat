@@ -94,6 +94,7 @@ export const collapsedFolders = signal<Set<string>>(new Set());
 export const activePrompts = signal<Map<string, DetectedPrompt>>(new Map());
 export const updateReady = signal(false);
 export const branchChange = signal<{ id: string; branch: string } | null>(null);
+export const branchReload = signal(0);
 
 // --- Computed ---
 

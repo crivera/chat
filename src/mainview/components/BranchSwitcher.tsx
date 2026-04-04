@@ -6,6 +6,7 @@ import {
   showToast,
   activeId,
   branchChange,
+  branchReload,
 } from "../state";
 
 export function BranchSwitcher() {
@@ -23,11 +24,12 @@ export function BranchSwitcher() {
     setBranches(data.branches);
   }, []);
 
-  // Reload when active terminal changes
+  // Reload when active terminal changes or after git actions
   const termId = activeId.value;
+  const reload = branchReload.value;
   useEffect(() => {
     load();
-  }, [load, termId]);
+  }, [load, termId, reload]);
 
   // Update when branch changes via git command in terminal
   const change = branchChange.value;
