@@ -54,7 +54,14 @@ export class StatusTracker {
     if (!this.titled.has(id)) return;
 
     const status = this.statuses.get(id);
-    if (!status || status === "done") return;
+    if (!status) return;
+
+    // When new output arrives for a "done" thread, reset to idle
+    // so the working/done cycle can restart (e.g. user sent another message)
+    if (status === "done") {
+      this.setStatus(id, "idle");
+      return;
+    }
 
     // Ignore residual output right after switching away
     const deactivated = this.deactivatedAt.get(id);

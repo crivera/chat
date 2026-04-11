@@ -23,6 +23,7 @@ import {
   dismissPromptOnInput,
   branchChange,
   branchReload,
+  restoring,
   setUpdateReady,
 } from "./state";
 import { App } from "./components/App";
@@ -44,6 +45,18 @@ type Schema = {
       };
       setSettings: {
         params: { useWorktree: boolean };
+        response: void;
+      };
+      getCustomCommand: {
+        params: { folderPath: string };
+        response: { label: string; command: string } | null;
+      };
+      setCustomCommand: {
+        params: { folderPath: string; label: string; command: string };
+        response: void;
+      };
+      clearCustomCommand: {
+        params: { folderPath: string };
         response: void;
       };
       checkFrameable: {
@@ -97,6 +110,8 @@ type Schema = {
       };
       updateToast: { message: string };
       updateReady: Record<string, never>;
+      restoreStart: Record<string, never>;
+      restoreEnd: Record<string, never>;
       refitTerminals: Record<string, never>;
       browserOpen: { url: string };
     };
@@ -163,6 +178,12 @@ const rpc = Electroview.defineRPC<Schema>({
       },
       updateReady: () => {
         setUpdateReady();
+      },
+      restoreStart: () => {
+        restoring.value = true;
+      },
+      restoreEnd: () => {
+        restoring.value = false;
       },
       refitTerminals: () => {
         refitAllTerminals();

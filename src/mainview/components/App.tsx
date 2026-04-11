@@ -4,6 +4,7 @@ import {
   threads,
   activeId,
   browserUrl,
+  restoring,
   updateReady,
   openFolderDialog,
   openNewTerminal,
@@ -21,6 +22,7 @@ import { Sidebar } from "./Sidebar";
 import { Settings } from "./Settings";
 import { PromptPopup } from "./PromptPopup";
 import { BranchSwitcher } from "./BranchSwitcher";
+import { CustomCommand } from "./CustomCommand";
 
 export function App() {
   const hasTerminals = threads.value.size > 0;
@@ -79,9 +81,16 @@ export function App() {
         <div id="terminal-area">
           {!hasTerminals && !browserUrl.value && (
             <div id="empty-state">
-              <p>
-                Click <strong>+</strong> to open a project folder
-              </p>
+              {restoring.value ? (
+                <div class="empty-state-loading">
+                  <div class="sidebar-spinner" />
+                  <p>Restoring projects...</p>
+                </div>
+              ) : (
+                <p>
+                  Click <strong>+</strong> to open a project folder
+                </p>
+              )}
             </div>
           )}
           {browserUrl.value && <BrowserOverlay />}
@@ -98,6 +107,7 @@ function Toolbar() {
   return (
     <div id="toolbar">
       <BranchSwitcher />
+      <CustomCommand />
       <div class="toolbar-group">
         <button
           class="toolbar-btn"

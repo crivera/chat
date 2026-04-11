@@ -134,7 +134,7 @@ describe("StatusTracker", () => {
     expect(statusChanges).toEqual([]);
   });
 
-  test("thread already done ignores further output", () => {
+  test("thread done resets to idle on new output, then can cycle again", () => {
     const { tracker, advance, statusChanges } = setup();
     tracker.trackThread("bg", true);
 
@@ -146,12 +146,19 @@ describe("StatusTracker", () => {
       { id: "bg", status: "done" },
     ]);
 
-    // More output after done — should be ignored
+    // More output after done — resets to idle, then can go working → done again
     statusChanges.length = 0;
     tracker.markActive("bg", 500, "other");
-    advance(2000);
+    expect(statusChanges).toEqual([{ id: "bg", status: "idle" }]);
 
-    expect(statusChanges).toEqual([]);
+    // Next output starts the cycle fresh
+    statusChanges.length = 0;
+    tracker.markActive("bg", 300, "other");
+    advance(2000);
+    expect(statusChanges).toEqual([
+      { id: "bg", status: "working" },
+      { id: "bg", status: "done" },
+    ]);
   });
 
   test("selectThread cleans up both previous and new thread", () => {

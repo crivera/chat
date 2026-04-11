@@ -5,6 +5,7 @@ import {
   activeId,
   activePrompts,
   collapsedFolders,
+  restoring,
   toggleFolderCollapsed,
   selectThread,
   closeTerminal,
@@ -30,6 +31,12 @@ export function Sidebar() {
         </button>
       </div>
       <div id="project-list">
+        {restoring.value && groups.length === 0 && (
+          <div class="sidebar-loading">
+            <div class="sidebar-spinner" />
+            <span>Restoring projects...</span>
+          </div>
+        )}
         {groups.map((group) => (
           <FolderGroup
             key={group.folderPath}

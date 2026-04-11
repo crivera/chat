@@ -74,6 +74,32 @@ body {
   padding: 0 8px;
 }
 
+/* Sidebar loading */
+.sidebar-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  color: #8888bb;
+  font-size: 12px;
+}
+
+.sidebar-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #2a2a40;
+  border-top-color: #8888bb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Folder groups */
 .folder-group {
   margin-bottom: 2px;
@@ -752,6 +778,133 @@ body {
   border-radius: 3px;
 }
 
+/* Custom command */
+.custom-cmd {
+  position: relative;
+}
+
+.custom-cmd-buttons {
+  display: flex;
+  align-items: center;
+  background: #22223a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.custom-cmd-run {
+  border-radius: 6px 0 0 6px;
+}
+
+.custom-cmd-run svg {
+  color: #6ee7a0;
+}
+
+.custom-cmd-edit {
+  padding: 5px 6px;
+  border-radius: 0 6px 6px 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.custom-cmd-buttons:hover .custom-cmd-edit {
+  opacity: 1;
+}
+
+.custom-cmd-add {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.custom-cmd-add:hover {
+  opacity: 1;
+}
+
+.custom-cmd-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 280px;
+  background: #1e1e36;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.custom-cmd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-cmd-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8888bb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.custom-cmd-field input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  background: #14142a;
+  color: #dddde8;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.custom-cmd-field input:focus {
+  border-color: #4a4a80;
+}
+
+.custom-cmd-field input::placeholder {
+  color: #555570;
+}
+
+.custom-cmd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.custom-cmd-save,
+.custom-cmd-delete {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.custom-cmd-save {
+  background: #2a4a3a;
+  color: #6ee7a0;
+}
+
+.custom-cmd-save:hover {
+  background: #3a5a4a;
+}
+
+.custom-cmd-delete {
+  background: transparent;
+  color: #f08080;
+}
+
+.custom-cmd-delete:hover {
+  background: #251818;
+}
+
 /* Terminal area */
 #terminal-area {
   flex: 1;
@@ -771,6 +924,18 @@ body {
 
 #empty-state strong {
   color: #9090bb;
+}
+
+.empty-state-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty-state-loading .sidebar-spinner {
+  width: 20px;
+  height: 20px;
 }
 
 .terminal-container {

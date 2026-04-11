@@ -61,11 +61,17 @@ const configDir = isWindows
 const configFile = join(configDir, "projects.json");
 const settingsFile = join(configDir, "settings.json");
 
-interface AppSettings {
-  useWorktree: boolean;
+interface CustomCommand {
+  label: string;
+  command: string;
 }
 
-const defaultSettings: AppSettings = { useWorktree: true };
+interface AppSettings {
+  useWorktree: boolean;
+  customCommands: Record<string, CustomCommand>;
+}
+
+const defaultSettings: AppSettings = { useWorktree: true, customCommands: {} };
 
 function loadSettings(): AppSettings {
   try {
@@ -197,6 +203,18 @@ type Schema = {
         params: AppSettings;
         response: void;
       };
+      getCustomCommand: {
+        params: { folderPath: string };
+        response: { label: string; command: string } | null;
+      };
+      setCustomCommand: {
+        params: { folderPath: string; label: string; command: string };
+        response: void;
+      };
+      clearCustomCommand: {
+        params: { folderPath: string };
+        response: void;
+      };
       checkFrameable: {
         params: { url: string };
         response: boolean;
@@ -243,6 +261,8 @@ type Schema = {
       branchChanged: { id: string; branch: string };
       updateToast: { message: string };
       updateReady: Record<string, never>;
+      restoreStart: Record<string, never>;
+      restoreEnd: Record<string, never>;
       refitTerminals: Record<string, never>;
       browserOpen: { url: string };
     };
@@ -567,6 +587,25 @@ const rpc = BrowserView.defineRPC<Schema>({
       },
       setSettings: (settings: AppSettings) => {
         appSettings = { ...appSettings, ...settings };
+        saveSettings(appSettings);
+      },
+      getCustomCommand: ({ folderPath }: { folderPath: string }) => {
+        return appSettings.customCommands[folderPath] || null;
+      },
+      setCustomCommand: ({
+        folderPath,
+        label,
+        command,
+      }: {
+        folderPath: string;
+        label: string;
+        command: string;
+      }) => {
+        appSettings.customCommands[folderPath] = { label, command };
+        saveSettings(appSettings);
+      },
+      clearCustomCommand: ({ folderPath }: { folderPath: string }) => {
+        delete appSettings.customCommands[folderPath];
         saveSettings(appSettings);
       },
       checkFrameable: ({ url }: { url: string }) => canEmbed(url),
@@ -935,6 +974,7 @@ win.webview.on("dom-ready", () => {
 
   const saved = loadSavedProjects();
   if (saved.length > 0) {
+    rpc.send.restoreStart({});
     setTimeout(() => {
       for (const project of saved) {
         if (existsSync(project.folderPath)) {
@@ -963,6 +1003,7 @@ win.webview.on("dom-ready", () => {
           }
         }
       }
+      rpc.send.restoreEnd({});
     }, 1500);
   }
 });

@@ -92,6 +92,7 @@ export const settingsOpen = signal(false);
 export const browserUrl = signal<string | null>(null);
 export const collapsedFolders = signal<Set<string>>(new Set());
 export const activePrompts = signal<Map<string, DetectedPrompt>>(new Map());
+export const restoring = signal(false);
 export const updateReady = signal(false);
 export const branchChange = signal<{ id: string; branch: string } | null>(null);
 export const branchReload = signal(0);
@@ -375,6 +376,29 @@ export async function getSettings() {
 
 export async function setSettings(s: { useWorktree: boolean }) {
   return rpc.request.setSettings(s);
+}
+
+export async function getCustomCommand(
+  folderPath: string,
+): Promise<{ label: string; command: string } | null> {
+  return rpc.request.getCustomCommand({ folderPath });
+}
+
+export async function setCustomCommand(
+  folderPath: string,
+  label: string,
+  command: string,
+) {
+  return rpc.request.setCustomCommand({ folderPath, label, command });
+}
+
+export async function clearCustomCommand(folderPath: string) {
+  return rpc.request.clearCustomCommand({ folderPath });
+}
+
+export function runCustomCommand(command: string) {
+  if (!activeId.value) return;
+  sendTerminalInput(activeId.value, command + "\n");
 }
 
 export function setUpdateReady() {
