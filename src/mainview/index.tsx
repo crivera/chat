@@ -142,13 +142,7 @@ const rpc = Electroview.defineRPC<Schema>({
         const instance = terminalInstances.get(id);
         if (instance) {
           instance.terminal.write(data);
-          // Strip ANSI escape sequences and control chars so animations
-          // (buddy, status line redraws) don't trigger working/done indicators.
-
-          const visible = data
-            .replace(/\x1b(?:\[[^@-~]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|.)/g, "")
-            .replace(/[\x00-\x1f\x7f]/g, "").length;
-          markActive(id, visible);
+          markActive(id);
           schedulePromptCheck(id);
         }
       },

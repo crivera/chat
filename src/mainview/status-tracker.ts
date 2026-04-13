@@ -10,11 +10,10 @@ export interface StatusTrackerOptions {
 export class StatusTracker {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private idleTimers = new Map<string, any>();
-  private outputAccumulators = new Map<string, number>();
   private deactivatedAt = new Map<string, number>();
-  private lastBgOutputAt = new Map<string, number>();
   private statuses = new Map<string, ThreadStatus>();
   private titled = new Set<string>();
+  private agentRunning = new Set<string>();
 
   private now: () => number;
   private _setTimeout: (cb: () => void, ms: number) => number;
@@ -49,15 +48,14 @@ export class StatusTracker {
     return this.statuses.get(id);
   }
 
-  markActive(id: string, dataLen: number, activeId: string | null) {
+  markActive(id: string, activeId: string | null) {
     if (id === activeId) return;
     if (!this.titled.has(id)) return;
 
     const status = this.statuses.get(id);
     if (!status) return;
 
-    // When new output arrives for a "done" thread, reset to idle
-    // so the working/done cycle can restart (e.g. user sent another message)
+    // New output on a "done" thread → reset to idle so working/done can recycle
     if (status === "done") {
       this.setStatus(id, "idle");
       return;
@@ -70,53 +68,63 @@ export class StatusTracker {
       this.deactivatedAt.delete(id);
     }
 
-    // Reset accumulator when there's a gap between output events (>1s).
-    // Prevents slow periodic noise from gradually accumulating to threshold.
-    const currentTime = this.now();
-    const lastTime = this.lastBgOutputAt.get(id);
-    this.lastBgOutputAt.set(id, currentTime);
-    if (lastTime !== undefined && currentTime - lastTime > 1000) {
-      this.outputAccumulators.delete(id);
+    if (status !== "working") {
+      this.setStatus(id, "working");
     }
 
-    const accumulated = (this.outputAccumulators.get(id) || 0) + dataLen;
-    this.outputAccumulators.set(id, accumulated);
+    // Don't schedule a "done" timer while an agent is still running
+    if (this.agentRunning.has(id)) {
+      this.clearTimers(id);
+      return;
+    }
 
     const existing = this.idleTimers.get(id);
     if (existing) this._clearTimeout(existing);
-
-    if (accumulated >= 200 && status !== "working") {
-      this.setStatus(id, "working");
-    }
 
     this.idleTimers.set(
       id,
       this._setTimeout(() => {
         this.idleTimers.delete(id);
-        const total = this.outputAccumulators.get(id) || 0;
-        this.outputAccumulators.delete(id);
-        if (total < 200) return;
+        if (this.agentRunning.has(id)) return;
         this.setStatus(id, "done");
       }, 2000),
     );
   }
 
+  setAgentRunning(id: string, running: boolean, activeId: string | null) {
+    const was = this.agentRunning.has(id);
+    if (running === was) return;
+
+    if (running) this.agentRunning.add(id);
+    else this.agentRunning.delete(id);
+
+    if (id === activeId) return;
+    if (!this.titled.has(id)) return;
+
+    if (running) {
+      this.clearTimers(id);
+      if (this.statuses.get(id) !== "working") {
+        this.setStatus(id, "working");
+      }
+    } else if (this.statuses.get(id) === "working") {
+      this.setStatus(id, "done");
+    }
+  }
+
   selectThread(newId: string, prevId: string | null) {
-    // Clean up thread we're leaving
     if (prevId && prevId !== newId) {
       this.clearTimers(prevId);
-      this.outputAccumulators.delete(prevId);
-      this.lastBgOutputAt.delete(prevId);
       this.deactivatedAt.set(prevId, this.now());
-      if (this.statuses.get(prevId) === "working") {
+      if (this.agentRunning.has(prevId)) {
+        if (this.statuses.get(prevId) !== "working") {
+          this.setStatus(prevId, "working");
+        }
+      } else if (this.statuses.get(prevId) === "working") {
         this.setStatus(prevId, "idle");
       }
     }
 
-    // Clean up thread we're switching to
     this.clearTimers(newId);
-    this.outputAccumulators.delete(newId);
-    this.lastBgOutputAt.delete(newId);
     if (this.statuses.get(newId) !== "idle") {
       this.setStatus(newId, "idle");
     }
@@ -124,11 +132,10 @@ export class StatusTracker {
 
   removeThread(id: string) {
     this.clearTimers(id);
-    this.outputAccumulators.delete(id);
     this.deactivatedAt.delete(id);
-    this.lastBgOutputAt.delete(id);
     this.statuses.delete(id);
     this.titled.delete(id);
+    this.agentRunning.delete(id);
   }
 
   private setStatus(id: string, status: ThreadStatus) {

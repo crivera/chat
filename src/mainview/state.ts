@@ -217,8 +217,8 @@ export function removeThread(id: string) {
   }
 }
 
-export function markActive(id: string, dataLen: number) {
-  statusTracker.markActive(id, dataLen, activeId.value);
+export function markActive(id: string) {
+  statusTracker.markActive(id, activeId.value);
 }
 
 export function selectThread(id: string) {
@@ -443,13 +443,6 @@ function runPromptCheck(id: string) {
   const thread = threads.value.get(id);
   if (!thread) return;
 
-  // Only show popups for background terminals
-  if (id === activeId.value) {
-    // Dismiss if it was previously showing (user switched to this terminal)
-    if (activePrompts.value.has(id)) dismissPrompt(id);
-    return;
-  }
-
   const instance = terminalInstances.get(id);
   if (!instance) return;
 
@@ -461,6 +454,16 @@ function runPromptCheck(id: string) {
   for (let i = startRow; i <= cursorRow; i++) {
     const line = buffer.getLine(i);
     if (line) lines.push(line.translateToString(true));
+  }
+
+  // Local-agent detection: pin "working" while background agents run
+  const agentRunning = /\b\d+\s+local agents?\b/i.test(lines.join("\n"));
+  statusTracker.setAgentRunning(id, agentRunning, activeId.value);
+
+  // Prompt popups are only for background terminals
+  if (id === activeId.value) {
+    if (activePrompts.value.has(id)) dismissPrompt(id);
+    return;
   }
 
   const detected = detectPromptPattern(lines);
